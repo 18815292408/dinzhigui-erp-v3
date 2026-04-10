@@ -12,6 +12,7 @@ interface CustomerInsight {
   intention_level: string | null
   last_followup?: string
   days_since_created?: number
+  days_since_last_followup?: number | null
   design_status?: string
   issue?: string
 }

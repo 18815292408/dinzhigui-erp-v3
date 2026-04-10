@@ -56,9 +56,9 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   const authRes = await fetch(`${adminUrl}/auth/v1/admin/users/${params.id}`, {
     method: 'DELETE',
     headers: {
-      'apikey': adminKey,
+      'apikey': adminKey as string,
       'Authorization': `Bearer ${adminKey}`,
-    },
+    } as HeadersInit,
   })
 
   console.log('Delete from Auth result:', authRes.status)

@@ -13,11 +13,13 @@ export default async function UsersPage() {
   const canCreateUser = user && ['owner', 'manager'].includes(user.role)
 
   const adminSupabase = await createAdminClient()
-  const { data: users } = await adminSupabase
-    .from('users')
-    .select('*')
-    .eq('organization_id', user.organization_id)
-    .order('created_at', { ascending: false })
+  const { data: users } = user
+    ? await adminSupabase
+        .from('users')
+        .select('*')
+        .eq('organization_id', user.organization_id)
+        .order('created_at', { ascending: false })
+    : { data: null }
 
   return (
     <div className="space-y-6">

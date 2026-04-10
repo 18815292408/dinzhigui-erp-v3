@@ -132,7 +132,7 @@ export function DesignForm() {
         <Input
           type="number"
           value={form.final_price}
-          onChange={(e) => setForm({ ...form, price: e.target.value })}
+          onChange={(e) => setForm({ ...form, final_price: e.target.value })}
         />
       </div>
 
