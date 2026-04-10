@@ -42,20 +42,6 @@ export function LoginForm() {
     }
   }
 
-  const handleDemoLogin = async () => {
-    // Demo mode - set cookie and redirect
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'demo@phone.local', password: 'demo123' }),
-    })
-
-    if (res.ok) {
-      router.push('/dashboard')
-      router.refresh()
-    }
-  }
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* 模式切换 tabs - Apple style */}
@@ -129,16 +115,6 @@ export function LoginForm() {
         {loading && <Loader2 className="w-5 h-5 animate-spin" />}
         {loading ? '登录中...' : '登录'}
       </button>
-
-      <div className="pt-4 border-t border-apple-gray-200">
-        <button
-          type="button"
-          onClick={handleDemoLogin}
-          className="w-full py-3 bg-apple-gray-100 text-apple-blue text-[15px] font-medium rounded-xl hover:bg-apple-gray-200 active:bg-apple-gray-200 transition-all duration-200"
-        >
-          演示登录 (Supabase) →
-        </button>
-      </div>
     </form>
   )
 }
