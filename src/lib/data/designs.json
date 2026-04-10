@@ -1,0 +1,17 @@
+[
+  {
+    "organization_id": "00000000-0000-0000-0000-000000000001",
+    "created_by": "demo-user-id",
+    "customer_id": "ea469381-5824-4240-8601-f0205465f969",
+    "title": "zy - 设计方案",
+    "room_count": null,
+    "total_area": null,
+    "description": null,
+    "price": null,
+    "status": "draft",
+    "attachments": "[]",
+    "id": "526f6d1c-6325-4922-9c35-3f86a00e9914",
+    "created_at": "2026-04-03T08:41:11.750Z",
+    "updated_at": "2026-04-03T08:41:11.750Z"
+  }
+]

@@ -1,0 +1,106 @@
+@import "tw-animate-css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Apple Gray Palette */
+    --apple-gray-900: #1d1d1f;
+    --apple-gray-700: #636366;
+    --apple-gray-500: #86868b;
+    --apple-gray-300: #acacb0;
+    --apple-gray-200: #d2d2d7;
+    --apple-gray-100: #e8e8ed;
+    --apple-gray-50: #f5f5f7;
+
+    /* Apple System Colors */
+    --apple-blue: #007AFF;
+    --apple-blue-hover: #0071e3;
+    --apple-purple: #5856D6;
+    --apple-green: #34C759;
+    --apple-orange: #FF9500;
+    --apple-red: #FF3B30;
+    --apple-yellow: #FFCC00;
+
+    /* Semantic Colors */
+    --background: var(--apple-gray-50);
+    --foreground: var(--apple-gray-900);
+    --card: oklch(1 0 0);
+    --card-foreground: var(--apple-gray-900);
+    --popover: oklch(1 0 0);
+    --popover-foreground: var(--apple-gray-900);
+    --primary: var(--apple-blue);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: var(--apple-gray-100);
+    --secondary-foreground: var(--apple-gray-900);
+    --muted: var(--apple-gray-100);
+    --muted-foreground: var(--apple-gray-500);
+    --accent: var(--apple-gray-100);
+    --accent-foreground: var(--apple-gray-900);
+    --destructive: var(--apple-red);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: var(--apple-gray-200);
+    --input: var(--apple-gray-200);
+    --ring: var(--apple-blue);
+    --radius: 0.625rem;
+    --chart-1: var(--apple-blue);
+    --chart-2: var(--apple-green);
+    --chart-3: var(--apple-orange);
+    --chart-4: var(--apple-purple);
+    --chart-5: var(--apple-red);
+    --sidebar: var(--apple-gray-50);
+    --sidebar-foreground: var(--apple-gray-900);
+    --sidebar-primary: var(--apple-blue);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: var(--apple-gray-100);
+    --sidebar-accent-foreground: var(--apple-gray-900);
+    --sidebar-border: var(--apple-gray-200);
+    --sidebar-ring: var(--apple-blue);
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Utility classes using CSS variables */
+@layer utilities {
+  .bg-apple-gray-50 { background-color: var(--apple-gray-50); }
+  .bg-apple-gray-100 { background-color: var(--apple-gray-100); }
+  .bg-apple-gray-200 { background-color: var(--apple-gray-200); }
+  .bg-apple-gray-900 { background-color: var(--apple-gray-900); }
+  .bg-apple-blue { background-color: var(--apple-blue); }
+  .bg-apple-purple { background-color: var(--apple-purple); }
+  .bg-apple-green { background-color: var(--apple-green); }
+  .bg-apple-orange { background-color: var(--apple-orange); }
+  .bg-apple-red { background-color: var(--apple-red); }
+
+  .text-apple-gray-900 { color: var(--apple-gray-900); }
+  .text-apple-gray-500 { color: var(--apple-gray-500); }
+  .text-apple-gray-300 { color: var(--apple-gray-300); }
+  .text-apple-blue { color: var(--apple-blue); }
+  .text-apple-green { color: var(--apple-green); }
+  .text-apple-orange { color: var(--apple-orange); }
+  .text-apple-red { color: var(--apple-red); }
+
+  .border-apple-gray-200 { border-color: var(--apple-gray-200); }
+  .border-apple-gray-300 { border-color: var(--apple-gray-300); }
+
+  .from-apple-blue { --tw-gradient-from: var(--apple-blue); }
+  .to-apple-purple { --tw-gradient-to: var(--apple-purple); }
+  .to-apple-green { --tw-gradient-to: var(--apple-green); }
+  .to-apple-blue { --tw-gradient-to: var(--apple-blue); }
+  .from-apple-green { --tw-gradient-from: var(--apple-green); }
+
+  .shadow-apple-blue { --tw-shadow-color: var(--apple-blue); }
+}

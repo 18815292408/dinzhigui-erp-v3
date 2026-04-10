@@ -1,0 +1,30 @@
+[
+  {
+    "organization_id": "00000000-0000-0000-0000-000000000001",
+    "created_by": "demo-user-id",
+    "name": "zy",
+    "phone": "18815292400",
+    "email": "4464651559@qq.com",
+    "address": "打算防辐射",
+    "house_type": "一室一厅",
+    "requirements": "大幅度防守打法",
+    "intention_level": null,
+    "intention_reason": null,
+    "ai_analyzed_at": null,
+    "follow_ups": [
+      "[",
+      "]",
+      {
+        "content": "大富大贵烦得很公分",
+        "date": "2026-04-03T06:48:54.981Z"
+      },
+      {
+        "content": "发广告",
+        "date": "2026-04-03T06:56:50.654Z"
+      }
+    ],
+    "id": "ea469381-5824-4240-8601-f0205465f969",
+    "created_at": "2026-04-03T06:48:49.453Z",
+    "updated_at": "2026-04-03T06:56:51.158Z"
+  }
+]
