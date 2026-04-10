@@ -17,9 +17,9 @@ async function createAdmin() {
     }
   })
 
-  const phone = '18815292408'
-  const password = 'zy19930422'
-  const userName = '管理员'
+  const phone = process.env.ADMIN_PHONE || '18815292408'
+  const password = process.env.ADMIN_PASSWORD || 'change-me-in-production'
+  const userName = process.env.ADMIN_NAME || '管理员'
 
   // 1. Create auth user
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({

@@ -8,6 +8,7 @@ coverage/
 
 # Next.js
 .out/
+.next/
 next-env.d.ts
 
 # Production
