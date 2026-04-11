@@ -72,6 +72,14 @@ export async function POST(request: NextRequest) {
         .eq('id', userId)
         .single()
 
+      // Check if account has expired
+      if (profile?.expires_at) {
+        const expiresAt = new Date(profile.expires_at)
+        if (expiresAt < new Date()) {
+          return NextResponse.json({ error: '账号已过期，请联系管理员续期' }, { status: 403 })
+        }
+      }
+
       const user: SessionUser = {
         id: data.user.id,
         email: data.user.email || email,

@@ -34,6 +34,7 @@ export interface Database {
           phone: string | null
           display_name: string | null
           role: 'owner' | 'designer' | 'sales' | 'installer'
+          expires_at: string | null
           created_at: string
           updated_at: string
         }
@@ -44,6 +45,7 @@ export interface Database {
           phone?: string | null
           display_name?: string | null
           role: 'owner' | 'designer' | 'sales' | 'installer'
+          expires_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -53,6 +55,7 @@ export interface Database {
           phone?: string | null
           display_name?: string | null
           role?: 'owner' | 'designer' | 'sales' | 'installer'
+          expires_at?: string | null
           updated_at?: string
         }
       }

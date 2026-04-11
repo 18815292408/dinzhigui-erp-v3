@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   return NextResponse.json({ success: true })
 }
 
-// Update user role/name
+// Update user role/name/expires_at
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')
@@ -80,21 +80,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const adminSupabase = await createAdminClient()
   const body = await request.json()
-  const { role, display_name } = body
+  const { role, display_name, expires_at } = body
 
-  // Verify target user belongs to same organization
-  const { data: targetUser } = await adminSupabase
-    .from('users')
-    .select('id, organization_id')
-    .eq('id', params.id)
-    .single()
+  // Owner can update any user, manager can only update same organization users
+  if (currentUser.role !== 'owner') {
+    const { data: targetUser } = await adminSupabase
+      .from('users')
+      .select('id, organization_id')
+      .eq('id', params.id)
+      .single()
 
-  if (!targetUser) {
-    return NextResponse.json({ error: '用户不存在' }, { status: 404 })
-  }
+    if (!targetUser) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 })
+    }
 
-  if (targetUser.organization_id !== currentUser.organization_id) {
-    return NextResponse.json({ error: '无权修改该用户' }, { status: 403 })
+    if (targetUser.organization_id !== currentUser.organization_id) {
+      return NextResponse.json({ error: '无权修改该用户' }, { status: 403 })
+    }
   }
 
   const validRoles = ['owner', 'manager', 'sales', 'designer', 'installer']
@@ -102,9 +104,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: '无效的角色' }, { status: 400 })
   }
 
+  // Validate expires_at format if provided
+  if (expires_at !== null && expires_at !== undefined) {
+    if (typeof expires_at === 'string') {
+      const date = new Date(expires_at)
+      if (isNaN(date.getTime())) {
+        return NextResponse.json({ error: '无效的过期时间格式' }, { status: 400 })
+      }
+    }
+  }
+
   const updates: any = {}
   if (role) updates.role = role
-  if (display_name) updates.display_name = display_name
+  if (display_name !== undefined) updates.display_name = display_name
+  if (expires_at !== undefined) updates.expires_at = expires_at
   updates.updated_at = new Date().toISOString()
 
   const { error } = await adminSupabase
