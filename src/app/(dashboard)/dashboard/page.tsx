@@ -29,25 +29,30 @@ async function getDashboardData() {
     designsResult,
     activeInstallationsResult,
     completedInstallationsResult,
+    completedCustomerIdsResult,
     recentCustomersResult,
   ] = await Promise.all([
     adminSupabase.from('customers').select('id', { count: 'exact' }).eq('organization_id', orgId),
     adminSupabase.from('designs').select('id', { count: 'exact' }).eq('organization_id', orgId),
     adminSupabase.from('installations').select('id', { count: 'exact' }).eq('organization_id', orgId).in('status', ['pending', 'in_progress']),
     adminSupabase.from('installations').select('id', { count: 'exact' }).eq('organization_id', orgId).in('status', ['completed', 'cancelled']),
+    adminSupabase.from('installations').select('customer_id').eq('organization_id', orgId).in('status', ['completed', 'cancelled']).not('customer_id', 'is', null),
     adminSupabase
       .from('customers')
       .select('id, name, intention_level, created_at')
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(10),
   ])
+
+  // 过滤掉已完成订单的客户
+  const completedCustomerIds = (completedCustomerIdsResult.data || []).map((i: any) => i.customer_id)
+  const recentCustomers = (recentCustomersResult.data || []).filter((c: any) => !completedCustomerIds.includes(c.id)).slice(0, 5)
 
   const customerCount = customersResult.count || 0
   const designCount = designsResult.count || 0
   const activeInstallationCount = activeInstallationsResult.count || 0
   const completedInstallationCount = completedInstallationsResult.count || 0
-  const recentCustomers = recentCustomersResult.data || []
 
   return {
     userRole: user.role,

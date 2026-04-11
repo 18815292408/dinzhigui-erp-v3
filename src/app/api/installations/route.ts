@@ -45,6 +45,23 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const adminSupabase = await createAdminClient()
 
+  // 校验：如果提供了design_id，必须确保设计方案已确认才能创建安装单
+  if (body.design_id) {
+    const { data: design, error: designError } = await adminSupabase
+      .from('designs')
+      .select('status')
+      .eq('id', body.design_id)
+      .single()
+
+    if (designError || !design) {
+      return NextResponse.json({ error: '设计方案不存在' }, { status: 400 })
+    }
+
+    if (design.status !== 'confirmed') {
+      return NextResponse.json({ error: '只有已确认的设计方案才能创建安装单' }, { status: 400 })
+    }
+  }
+
   const { data, error } = await adminSupabase
     .from('installations')
     .insert({

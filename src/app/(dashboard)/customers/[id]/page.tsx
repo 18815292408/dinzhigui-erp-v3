@@ -1,6 +1,5 @@
 import { cookies } from 'next/headers'
 import Link from 'next/link'
-import { IntentionBadge } from '@/components/customers/intention-badge'
 import { FollowUpForm } from '@/components/customers/follow-up-form'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TransferDesignButton } from '@/components/customers/transfer-design-button'
@@ -23,7 +22,7 @@ async function getCustomer(id: string, organizationId: string) {
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
   // Validate UUID format
   const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!isValidUUID.test(params.id) && !params.id.startsWith('demo-')) {
+  if (!isValidUUID.test(params.id)) {
     return <div>无效的客户ID</div>
   }
 
@@ -34,23 +33,12 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
   // Permission check: owner, manager, sales can edit
   const canEdit = user && ['owner', 'manager', 'sales'].includes(user.role)
 
-  let customer: any = user
+  const customer: any = user
     ? await getCustomer(params.id, user.organization_id)
     : null
 
   if (!customer) {
-    // Demo fallback
-    customer = {
-      id: params.id,
-      name: '演示客户',
-      phone: '13800138000',
-      intention_level: 'high',
-      house_type: '三室两厅',
-      address: 'XX市XX区XX小区',
-      requirements: '现代简约风格...',
-      intention_reason: '客户意向很高，近期有装修需求',
-      follow_ups: [],
-    }
+    return <div className="p-6">客户不存在</div>
   }
 
   const followUps = typeof customer.follow_ups === 'string'
@@ -66,7 +54,6 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           <p className="text-muted-foreground">{customer.phone}</p>
         </div>
         <div className="flex items-center gap-4">
-          <IntentionBadge level={customer.intention_level} />
           {canEdit && user && (
             <TransferDesignButton customerId={customer.id} customerName={customer.name} organizationId={user.organization_id} />
           )}

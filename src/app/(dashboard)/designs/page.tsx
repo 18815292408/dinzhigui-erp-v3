@@ -28,28 +28,8 @@ async function getDesigns() {
   return data || []
 }
 
-// Demo data
-const DEMO_DESIGNS = [
-  {
-    id: 'demo-design-1',
-    title: 'XX小区A户型设计方案',
-    room_count: 3,
-    total_area: 120.5,
-    price: 150000,
-    status: 'submitted',
-    customers: { name: '张三' },
-    users: { display_name: '演示设计师' },
-    created_at: new Date().toISOString(),
-  },
-]
-
 export default async function DesignsPage() {
-  let designs: any[] = []
-
-  designs = await getDesigns()
-  if (designs.length === 0) {
-    designs = DEMO_DESIGNS
-  }
+  const designs: any[] = await getDesigns()
 
   return (
     <div className="space-y-6">

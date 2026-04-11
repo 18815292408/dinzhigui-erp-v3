@@ -177,9 +177,20 @@ export async function POST(request: NextRequest) {
     adminSupabase
       .from('installations')
       .select('id, customer_id, design_id, status, scheduled_date, feedback, created_at')
-      .eq('organization_id', orgId)
-      .not('status', 'in', '(completed,cancelled)'),
+      .eq('organization_id', orgId),
   ])
+
+  console.log('[AI Analysis] Query results:', {
+    customersCount: customersResult.data?.length || 0,
+    designsCount: designsResult.data?.length || 0,
+    installationsCount: installationsResult.data?.length || 0,
+    customersError: customersResult.error,
+    designsError: designsResult.error,
+    installationsError: installationsResult.error,
+  })
+
+  // Debug: 打印installations原始数据
+  console.log('[AI Analysis] Installations raw data:', JSON.stringify(installationsResult.data, null, 2))
 
   const customers: CustomerData[] = customersResult.data || []
   const designs: DesignData[] = designsResult.data || []
@@ -206,6 +217,13 @@ export async function POST(request: NextRequest) {
 
     const customerDesigns = designs.filter(d => d.customer_id === c.id)
     const customerInstallations = installations.filter(i => i.customer_id === c.id)
+
+    // 过滤掉已完成订单的客户（设计方案已完成或安装已完成）
+    const hasCompletedDesign = customerDesigns.some(d => d.status === 'completed')
+    const hasCompletedInstallation = customerInstallations.some(i => i.status === 'completed')
+    if (hasCompletedDesign || hasCompletedInstallation) {
+      return null // 排除此客户
+    }
 
     // 收集方案的详细信息
     const designDetails = customerDesigns.map(d => ({
@@ -247,7 +265,7 @@ export async function POST(request: NextRequest) {
       installation_count: customerInstallations.length,
       installation_details: installationDetails,
     }
-  })
+  }).filter(c => c !== null) as AnalysisCustomer[]
 
   // 5. Call DeepSeek API
   const deepseekApiKey = process.env.DEEPSEEK_API_KEY
@@ -269,11 +287,19 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
 
 请按以下6个类别生成洞察（必须返回严格JSON格式）：
 1. **immediate_followup**: 需要立即跟进的客户（有重要跟进内容待处理，或超过7天未跟进）
-2. **risk_customers**: 风险客户（超过14天未跟进，或跟进记录显示意向下降或冷淡）
+2. **risk_customers**: 风险客户（超过14天未跟进，或跟进记录显示以下任意高风险信号：意向下降、态度冷淡、价格异议、嫌贵、考虑别家、犹豫不决、有流失迹象）
 3. **ready_to_close**: 可以成交的客户（有已确认的设计方案，或跟进记录显示客户已确定意向）
 4. **silent_customers**: 沉默客户（有设计方案但超过30天无进展，或跟进记录显示长时间无互动）
-5. **new_customers**: 本周新客户（7天内新增的客户）
+5. **new_customers**: 本周新客户（created_at显示是7天内新增的客户，即days_since_created <= 7的客户）
 6. **recommendations**: 门店运营建议（基于所有客户数据，给出2-4条具体可执行的建议，要结合跟进记录中的具体内容）
+
+【重要】风险信号识别规则：
+- "有点贵"/"价格高"/"贵" → 价格异议风险
+- "想定别家"/"考虑别家"/"看看别家"/"对比别家" → 竞品对比风险
+- "犹豫"/"再想想"/"考虑考虑"/"不确定" → 犹豫期风险
+- "不着急"/"不急着定"/"慢慢看" → 意向下降风险
+- 以上风险信号即使客户是今天才跟进的，也要归入risk_customers
+- 特别注意：只要跟进记录中出现价格异议、竞品对比、犹豫期任一信号，即使客户刚新增，也要归入风险客户
 
 每个类别的结构：
 - category: 类别标识
@@ -305,7 +331,15 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
 - 必须返回严格JSON格式，不要有markdown代码块
 - 每个customer对象只需包含id, name, phone, days_since_last_followup, days_since_created, design_status字段
 - 如果某类别没有客户，返回空数组
-- recommendations类别没有customers字段，只有recommendations数组`
+- recommendations类别没有customers字段，只有recommendations数组
+【重要】分类互斥规则：
+- risk_customers/immediate_followup/ready_to_close/silent_customers 这四个类别互斥，同一客户只能出现在其中一个类别
+- 分类优先级：risk_customers > immediate_followup > ready_to_close > silent_customers
+- 例如：某客户既是"即将成交"又有"风险信号"，则只归入risk_customers，不归入ready_to_close
+- **new_customers（本周新客）是独立维度**，不受互斥规则约束。即使客户已被归入risk/immediate/ready/silent之一，只要她是7天内新增的（days_since_created <= 7），就仍须同时出现在new_customers中
+- new_customers中的客户会与其他分类重复，这是正常的，因为new_customers是独立维度
+
+`
 
   try {
     const response = await fetch('https://api.deepseek.com/chat/completions', {

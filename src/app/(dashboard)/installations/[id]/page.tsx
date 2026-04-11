@@ -38,27 +38,16 @@ const statusLabels: Record<string, string> = {
   cancelled: '已取消',
 }
 
-// Demo data
-const DEMO_INSTALLATION = {
-  id: 'demo-installation-1',
-  status: 'pending',
-  scheduled_date: null,
-  feedback: null,
-  customers: { name: '张三', phone: '13800138000' },
-  designs: { title: 'XX小区A户型设计方案' },
-  created_at: new Date().toISOString(),
-}
-
 export default async function InstallationDetailPage({ params }: { params: { id: string } }) {
   // Validate UUID
   const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!isValidUUID.test(params.id) && !params.id.startsWith('demo-')) {
+  if (!isValidUUID.test(params.id)) {
     return <div className="p-6">无效的安装单ID</div>
   }
 
-  let installation: any = await getInstallation(params.id)
+  const installation: any = await getInstallation(params.id)
   if (!installation) {
-    installation = DEMO_INSTALLATION
+    return <div className="p-6">安装单不存在</div>
   }
 
   const cookieStore = await cookies()

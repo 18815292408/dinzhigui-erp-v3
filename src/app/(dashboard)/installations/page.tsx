@@ -28,25 +28,8 @@ async function getInstallations() {
   return data || []
 }
 
-// Demo data
-const DEMO_INSTALLATIONS = [
-  {
-    id: 'demo-installation-1',
-    status: 'pending',
-    scheduled_date: null,
-    feedback: null,
-    customers: { name: '张三', phone: '13800138000' },
-    designs: { title: 'XX小区A户型设计方案' },
-    created_at: new Date().toISOString(),
-  },
-]
-
 export default async function InstallationsPage() {
-  let installations: any[] = await getInstallations()
-
-  if (installations.length === 0) {
-    installations = DEMO_INSTALLATIONS
-  }
+  const installations: any[] = await getInstallations()
 
   return (
     <div className="space-y-6">

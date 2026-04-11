@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
-import { IntentionBadge } from './intention-badge'
 
 export function CustomerList({ customers }: { customers: any[] }) {
   if (customers.length === 0) {
@@ -25,7 +24,6 @@ export function CustomerList({ customers }: { customers: any[] }) {
                   {customer.phone} · {customer.house_type || '未填写房型'}
                 </p>
               </div>
-              <IntentionBadge level={customer.intention_level} />
             </div>
           </Card>
         </Link>

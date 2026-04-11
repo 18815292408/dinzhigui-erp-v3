@@ -36,22 +36,6 @@ async function getDesign(id: string) {
   return data
 }
 
-// Demo data
-const DEMO_DESIGN = {
-  id: 'demo-design-1',
-  title: 'XX小区A户型设计方案',
-  room_count: 3,
-  total_area: 120.5,
-  final_price: 150000,
-  description: '现代简约风格，全屋定制...',
-  status: 'submitted',
-  customer_id: 'demo-customer-1',
-  organization_id: '00000000-0000-0000-0000-000000000001',
-  customers: { name: '张三', phone: '13800138000' },
-  users: { display_name: '演示设计师' },
-  created_at: new Date().toISOString(),
-}
-
 // Server Action to submit design (draft → submitted)
 async function submitDesignAction(designId: string) {
   'use server'
@@ -113,21 +97,13 @@ async function confirmDesignAction(designId: string, customerId: string | null) 
 // Server Action to rollback design status (设计师 only)
 async function rollbackDesignAction(designId: string, targetStatus: 'draft' | 'submitted') {
   'use server'
-  console.log('rollbackDesignAction called', { designId, targetStatus })
   const adminSupabase = await createAdminClient()
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')
-  if (!sessionCookie) {
-    console.log('No session cookie')
-    return
-  }
+  if (!sessionCookie) return
 
   const user = parseSessionUser(sessionCookie.value)
-  console.log('User:', user?.role, user?.id)
-  if (!user || !['owner', 'manager', 'designer'].includes(user.role)) {
-    console.log('User role not allowed')
-    return
-  }
+  if (!user || !['owner', 'manager', 'designer'].includes(user.role)) return
 
   // 设计师只能回退自己创建的方案，管理员/店长可以回退任何方案
   if (user.role === 'designer') {
@@ -136,18 +112,15 @@ async function rollbackDesignAction(designId: string, targetStatus: 'draft' | 's
       .update({ status: targetStatus, updated_at: new Date().toISOString() })
       .eq('id', designId)
       .eq('created_by', user.id)
-    console.log('Designer rollback error:', error)
     if (!error) {
       redirect(`/designs/${designId}`)
     }
   } else {
     // 管理员/店长可以回退任何方案
-    console.log('Admin/Manager rollback for:', designId)
     const { error } = await adminSupabase
       .from('designs')
       .update({ status: targetStatus, updated_at: new Date().toISOString() })
       .eq('id', designId)
-    console.log('Admin rollback error:', error)
     if (!error) {
       redirect(`/designs/${designId}`)
     }
@@ -158,13 +131,13 @@ async function rollbackDesignAction(designId: string, targetStatus: 'draft' | 's
 export default async function DesignDetailPage({ params }: { params: { id: string } }) {
   // Validate UUID
   const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!isValidUUID.test(params.id) && !params.id.startsWith('demo-')) {
+  if (!isValidUUID.test(params.id)) {
     return <div className="p-6">无效的方案ID</div>
   }
 
-  let design: any = await getDesign(params.id)
+  const design: any = await getDesign(params.id)
   if (!design) {
-    design = DEMO_DESIGN
+    return <div className="p-6">方案不存在</div>
   }
 
   const cookieStore = await cookies()
