@@ -73,15 +73,6 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         </div>
       </div>
 
-      {/* AI 分析理由 */}
-      {customer.intention_reason && (
-        <div className="p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-blue-800">
-            <strong>AI 分析：</strong>{customer.intention_reason}
-          </p>
-        </div>
-      )}
-
       {/* 客户信息卡片 */}
       <Card>
         <CardHeader>
