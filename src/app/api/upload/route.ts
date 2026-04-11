@@ -1,4 +1,4 @@
-// Upload API - CAD files to Supabase Storage
+// Upload API - Any files to Supabase Storage
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
@@ -25,16 +25,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请选择要上传的文件' }, { status: 400 })
     }
 
-    // Validate file type
-    const allowedTypes = ['.dwg', '.dxf', '.pdf', '.jpg', '.jpeg', '.png']
+    // 支持任意文件类型
+    const allowedTypes = [
+      '.dwg', '.dxf', '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp',
+      '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf',
+      '.zip', '.rar', '.7z', '.tar', '.gz',
+      '.mp3', '.mp4', '.avi', '.mov', '.wmv',
+      '.svg', '.eps', '.ai', '.psd', '.tiff',
+    ]
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
-    if (!allowedTypes.includes(ext)) {
-      return NextResponse.json({ error: '不支持的文件类型，仅支持：dwg、dxf、pdf、jpg、jpeg、png' }, { status: 400 })
+    if (ext && !allowedTypes.includes(ext)) {
+      return NextResponse.json({ error: '不支持的文件类型' }, { status: 400 })
     }
 
-    // Max 50MB
-    if (file.size > 50 * 1024 * 1024) {
-      return NextResponse.json({ error: '文件过大，最大支持 50MB' }, { status: 400 })
+    // Max 100MB
+    if (file.size > 100 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件过大，最大支持 100MB' }, { status: 400 })
     }
 
     const supabase = await createClient()

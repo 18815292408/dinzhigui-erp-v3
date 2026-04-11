@@ -113,13 +113,21 @@ async function confirmDesignAction(designId: string, customerId: string | null) 
 // Server Action to rollback design status (设计师 only)
 async function rollbackDesignAction(designId: string, targetStatus: 'draft' | 'submitted') {
   'use server'
+  console.log('rollbackDesignAction called', { designId, targetStatus })
   const adminSupabase = await createAdminClient()
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')
-  if (!sessionCookie) return
+  if (!sessionCookie) {
+    console.log('No session cookie')
+    return
+  }
 
   const user = parseSessionUser(sessionCookie.value)
-  if (!user || !['owner', 'manager', 'designer'].includes(user.role)) return
+  console.log('User:', user?.role, user?.id)
+  if (!user || !['owner', 'manager', 'designer'].includes(user.role)) {
+    console.log('User role not allowed')
+    return
+  }
 
   // 设计师只能回退自己创建的方案，管理员/店长可以回退任何方案
   if (user.role === 'designer') {
@@ -128,15 +136,18 @@ async function rollbackDesignAction(designId: string, targetStatus: 'draft' | 's
       .update({ status: targetStatus, updated_at: new Date().toISOString() })
       .eq('id', designId)
       .eq('created_by', user.id)
+    console.log('Designer rollback error:', error)
     if (!error) {
       redirect(`/designs/${designId}`)
     }
   } else {
     // 管理员/店长可以回退任何方案
+    console.log('Admin/Manager rollback for:', designId)
     const { error } = await adminSupabase
       .from('designs')
       .update({ status: targetStatus, updated_at: new Date().toISOString() })
       .eq('id', designId)
+    console.log('Admin rollback error:', error)
     if (!error) {
       redirect(`/designs/${designId}`)
     }
