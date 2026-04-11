@@ -20,19 +20,21 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
   const adminSupabase = await createAdminClient()
 
-  // Verify user belongs to same organization before deleting
-  const { data: targetUser } = await adminSupabase
-    .from('users')
-    .select('id, organization_id')
-    .eq('id', params.id)
-    .single()
+  // Owner (开发者) can delete any user, manager can only delete same organization users
+  if (currentUser.role !== 'owner') {
+    const { data: targetUser } = await adminSupabase
+      .from('users')
+      .select('id, organization_id')
+      .eq('id', params.id)
+      .single()
 
-  if (!targetUser) {
-    return NextResponse.json({ error: '用户不存在' }, { status: 404 })
-  }
+    if (!targetUser) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 })
+    }
 
-  if (targetUser.organization_id !== currentUser.organization_id) {
-    return NextResponse.json({ error: '无权删除该用户' }, { status: 403 })
+    if (targetUser.organization_id !== currentUser.organization_id) {
+      return NextResponse.json({ error: '无权删除该用户' }, { status: 403 })
+    }
   }
 
   console.log('Deleting user:', params.id)
