@@ -110,6 +110,28 @@ async function confirmDesignAction(designId: string, customerId: string | null) 
   redirect('/designs')
 }
 
+// Server Action to rollback design status (设计师 only)
+async function rollbackDesignAction(designId: string, targetStatus: 'draft' | 'submitted') {
+  'use server'
+  const adminSupabase = await createAdminClient()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
+  if (!sessionCookie) return
+
+  const user = parseSessionUser(sessionCookie.value)
+  if (!user || user.role !== 'designer') return // 只有设计师可以回退
+
+  const { error } = await adminSupabase
+    .from('designs')
+    .update({ status: targetStatus, updated_at: new Date().toISOString() })
+    .eq('id', designId)
+    .eq('created_by', user.id) // 设计师只能回退自己创建的方案
+
+  if (!error) {
+    redirect(`/designs/${designId}`)
+  }
+}
+
 
 export default async function DesignDetailPage({ params }: { params: { id: string } }) {
   // Validate UUID
@@ -245,21 +267,41 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
       {design.status === 'submitted' && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">确认后将自动创建安装单</p>
-          <form action={async () => {
-            'use server'
-            await confirmDesignAction(design.id, design.customer_id)
-          }}>
-            <FormSubmitButton>确认方案并创建安装单</FormSubmitButton>
-          </form>
+          <div className="flex gap-4">
+            <form action={async () => {
+              'use server'
+              await confirmDesignAction(design.id, design.customer_id)
+            }}>
+              <FormSubmitButton>确认方案并创建安装单</FormSubmitButton>
+            </form>
+            {user?.role === 'designer' && user.id === design.created_by && (
+              <form action={async () => {
+                'use server'
+                await rollbackDesignAction(design.id, 'draft')
+              }}>
+                <FormSubmitButton variant="outline">撤回至草稿</FormSubmitButton>
+              </form>
+            )}
+          </div>
         </div>
       )}
 
       {design.status === 'confirmed' && (
-        <div className="p-4 bg-green-50 rounded-lg">
-          <p className="text-green-800 font-medium">方案已确认</p>
-          <Link href="/installations" className="text-sm text-blue-600 hover:underline">
-            查看安装单 →
-          </Link>
+        <div className="space-y-4">
+          <div className="p-4 bg-green-50 rounded-lg">
+            <p className="text-green-800 font-medium">方案已确认</p>
+            <Link href="/installations" className="text-sm text-blue-600 hover:underline">
+              查看安装单 →
+            </Link>
+          </div>
+          {user?.role === 'designer' && user.id === design.created_by && (
+            <form action={async () => {
+              'use server'
+              await rollbackDesignAction(design.id, 'submitted')
+            }}>
+              <FormSubmitButton variant="outline">撤回至已提交</FormSubmitButton>
+            </form>
+          )}
         </div>
       )}
     </div>
