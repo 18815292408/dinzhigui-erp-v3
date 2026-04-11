@@ -119,16 +119,27 @@ async function rollbackDesignAction(designId: string, targetStatus: 'draft' | 's
   if (!sessionCookie) return
 
   const user = parseSessionUser(sessionCookie.value)
-  if (!user || user.role !== 'designer') return // 只有设计师可以回退
+  if (!user || !['owner', 'manager', 'designer'].includes(user.role)) return
 
-  const { error } = await adminSupabase
-    .from('designs')
-    .update({ status: targetStatus, updated_at: new Date().toISOString() })
-    .eq('id', designId)
-    .eq('created_by', user.id) // 设计师只能回退自己创建的方案
-
-  if (!error) {
-    redirect(`/designs/${designId}`)
+  // 设计师只能回退自己创建的方案，管理员/店长可以回退任何方案
+  if (user.role === 'designer') {
+    const { error } = await adminSupabase
+      .from('designs')
+      .update({ status: targetStatus, updated_at: new Date().toISOString() })
+      .eq('id', designId)
+      .eq('created_by', user.id)
+    if (!error) {
+      redirect(`/designs/${designId}`)
+    }
+  } else {
+    // 管理员/店长可以回退任何方案
+    const { error } = await adminSupabase
+      .from('designs')
+      .update({ status: targetStatus, updated_at: new Date().toISOString() })
+      .eq('id', designId)
+    if (!error) {
+      redirect(`/designs/${designId}`)
+    }
   }
 }
 
