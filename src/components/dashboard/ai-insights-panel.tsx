@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Brain, AlertTriangle, TrendingUp, Users, Clock, Lightbulb, X, ChevronDown, ChevronUp, Sparkles, RefreshCw, History, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface CustomerInsight {
   id: string
@@ -296,31 +295,109 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
   // Initial state with analyze button (only for manager/owner)
   if (!analysisResult && !error && !isAnalyzing) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center py-6">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-apple-purple to-apple-blue flex items-center justify-center mb-4 shadow-lg">
-              <Sparkles className="w-7 h-7 text-white" />
+      <>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center justify-center py-6">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-apple-purple to-apple-blue flex items-center justify-center mb-4 shadow-lg">
+                <Sparkles className="w-7 h-7 text-white" />
+              </div>
+              <h3 className="text-[16px] font-semibold text-apple-gray-900 mb-1">AI 运营分析</h3>
+              <p className="text-[13px] text-apple-gray-500 mb-4 text-center">基于客户数据，AI 为你提供运营洞察</p>
+              {isManager ? (
+                <div className="flex gap-2">
+                  <Button onClick={runAnalysis} size="lg" className="gap-2 bg-apple-purple hover:bg-apple-purple/90">
+                    <Brain className="w-4 h-4" />
+                    开始 AI 分析
+                  </Button>
+                  <Button variant="outline" size="lg" onClick={openHistory} className="gap-2">
+                    <History className="w-4 h-4" />
+                    历史记录
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-[13px] text-apple-gray-400">仅店长和管理员可以使用此功能</p>
+              )}
             </div>
-            <h3 className="text-[16px] font-semibold text-apple-gray-900 mb-1">AI 运营分析</h3>
-            <p className="text-[13px] text-apple-gray-500 mb-4 text-center">基于客户数据，AI 为你提供运营洞察</p>
-            {isManager ? (
-              <div className="flex gap-2">
-                <Button onClick={runAnalysis} size="lg" className="gap-2 bg-apple-purple hover:bg-apple-purple/90">
-                  <Brain className="w-4 h-4" />
-                  开始 AI 分析
-                </Button>
-                <Button variant="outline" size="lg" onClick={openHistory} className="gap-2">
-                  <History className="w-4 h-4" />
-                  历史记录
+          </CardContent>
+        </Card>
+
+        {/* History Modal */}
+        {showHistory && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black/30" onClick={() => setShowHistory(false)} />
+            <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col z-10 mx-4">
+              <div className="flex items-center justify-between p-4 border-b">
+                <h3 className="text-[16px] font-semibold">AI 运营分析历史记录</h3>
+                <Button variant="ghost" size="icon-sm" onClick={() => setShowHistory(false)}>
+                  <X className="w-4 h-4" />
                 </Button>
               </div>
-            ) : (
-              <p className="text-[13px] text-apple-gray-400">仅店长和管理员可以使用此功能</p>
-            )}
+              <div className="flex-1 overflow-y-auto p-4">
+                {loadingHistory ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-8 h-8 rounded-full border-2 border-apple-purple/30 border-t-apple-purple animate-spin" />
+                  </div>
+                ) : historyList.length === 0 ? (
+                  <div className="text-center py-8 text-[14px] text-apple-gray-500">
+                    暂无历史记录
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {historyList.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-apple-gray-50 cursor-pointer transition-colors"
+                        onClick={() => viewHistoryItem(item)}
+                      >
+                        <div>
+                          <p className="text-[14px] font-medium text-apple-gray-900">
+                            {new Date(item.created_at).toLocaleString('zh-CN')}
+                          </p>
+                          <p className="text-[12px] text-apple-gray-500">
+                            分析 {item.total_customers} 位客户
+                          </p>
+                        </div>
+                        <Button variant="ghost" size="sm" className="gap-1">
+                          <Eye className="w-3 h-3" />
+                          查看
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        {/* History Detail Modal */}
+        {selectedHistory && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black/30" onClick={() => setSelectedHistory(null)} />
+            <div className="relative bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col z-10 mx-4">
+              <div className="flex items-center justify-between p-4 border-b">
+                <h3 className="text-[16px] font-semibold">
+                  {new Date(selectedHistory.created_at).toLocaleString('zh-CN')} 的分析结果
+                </h3>
+                <Button variant="ghost" size="icon-sm" onClick={() => setSelectedHistory(null)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {selectedHistory.insights.map((insight, index) => (
+                    <InsightCard key={index} insight={insight} />
+                  ))}
+                </div>
+                <div className="text-center text-[12px] text-apple-gray-500 py-2 border-t">
+                  共分析 {selectedHistory.total_customers} 位客户
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     )
   }
 
@@ -407,59 +484,69 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
         </CardContent>
       </Card>
 
-      {/* History Dialog */}
-      <Dialog open={showHistory} onOpenChange={setShowHistory}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-[16px] font-semibold">AI 运营分析历史记录</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto">
-            {loadingHistory ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-8 h-8 rounded-full border-2 border-apple-purple/30 border-t-apple-purple animate-spin" />
-              </div>
-            ) : historyList.length === 0 ? (
-              <div className="text-center py-8 text-[14px] text-apple-gray-500">
-                暂无历史记录
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {historyList.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-apple-gray-50 cursor-pointer transition-colors"
-                    onClick={() => viewHistoryItem(item)}
-                  >
-                    <div>
-                      <p className="text-[14px] font-medium text-apple-gray-900">
-                        {new Date(item.created_at).toLocaleString('zh-CN')}
-                      </p>
-                      <p className="text-[12px] text-apple-gray-500">
-                        分析 {item.total_customers} 位客户
-                      </p>
+      {/* History Modal */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/30" onClick={() => setShowHistory(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col z-10 mx-4">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-[16px] font-semibold">AI 运营分析历史记录</h3>
+              <Button variant="ghost" size="icon-sm" onClick={() => setShowHistory(false)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-8 h-8 rounded-full border-2 border-apple-purple/30 border-t-apple-purple animate-spin" />
+                </div>
+              ) : historyList.length === 0 ? (
+                <div className="text-center py-8 text-[14px] text-apple-gray-500">
+                  暂无历史记录
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {historyList.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-apple-gray-50 cursor-pointer transition-colors"
+                      onClick={() => viewHistoryItem(item)}
+                    >
+                      <div>
+                        <p className="text-[14px] font-medium text-apple-gray-900">
+                          {new Date(item.created_at).toLocaleString('zh-CN')}
+                        </p>
+                        <p className="text-[12px] text-apple-gray-500">
+                          分析 {item.total_customers} 位客户
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" className="gap-1">
+                        <Eye className="w-3 h-3" />
+                        查看
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="sm" className="gap-1">
-                      <Eye className="w-3 h-3" />
-                      查看
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
-      {/* History Detail Dialog */}
+      {/* History Detail Modal */}
       {selectedHistory && (
-        <Dialog open={!!selectedHistory} onOpenChange={() => setSelectedHistory(null)}>
-          <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-            <DialogHeader>
-              <DialogTitle className="text-[16px] font-semibold">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/30" onClick={() => setSelectedHistory(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col z-10 mx-4">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-[16px] font-semibold">
                 {new Date(selectedHistory.created_at).toLocaleString('zh-CN')} 的分析结果
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 overflow-y-auto space-y-4">
+              </h3>
+              <Button variant="ghost" size="icon-sm" onClick={() => setSelectedHistory(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {selectedHistory.insights.map((insight, index) => (
                   <InsightCard key={index} insight={insight} />
@@ -469,8 +556,8 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
                 共分析 {selectedHistory.total_customers} 位客户
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
       )}
     </>
   )
