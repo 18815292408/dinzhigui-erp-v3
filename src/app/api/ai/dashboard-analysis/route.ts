@@ -219,10 +219,15 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
   "summary": "整体分析总结（50字以内）"
 }
 
-注意：
+【重要】输出规范：
+- 所有文字必须使用中文，禁止出现英文字段名或英文单词（除了客户姓名拼音）
+- intention_level字段值映射：high=高意向，medium=中意向，low=低意向，null=未评估
+- design_status字段值映射：draft=草稿，submitted=已提交，confirmed=已确认
+- installation_status字段值映射：pending=待处理，in_progress=进行中，completed=已完成，cancelled=已取消
+- recommendations中的客户名称必须使用真实姓名，不要用姓氏缩写
+- 每个recommendations建议要具体，包含客户姓名或具体情况，不要说"某客户"或"某个"
 - 必须返回严格JSON格式，不要有markdown代码块
 - 每个customer对象只需包含id, name, phone, intention_level, days_since_last_followup, days_since_created, design_status字段
-- priority: high=需要立即处理，medium=需要关注，low=参考
 - 如果某类别没有客户，返回空数组
 - recommendations类别没有customers字段，只有recommendations数组`
 
@@ -238,7 +243,7 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
         messages: [
           {
             role: 'system',
-            content: '你是一个专业的全屋定制门店运营顾问。请分析客户数据并给出可操作的建议。只返回JSON，不要有其他文字。'
+            content: '你是一个专业的全屋定制门店运营顾问。请分析客户数据并给出可操作的建议。只返回JSON，不要有其他文字。所有输出必须使用中文，禁止出现英文字段名或英文单词（除了客户姓名拼音）。意向等级映射：high=高意向，medium=中意向，low=低意向，null=未评估。方案状态映射：draft=草稿，submitted=已提交，confirmed=已确认。安装状态映射：pending=待处理，in_progress=进行中，completed=已完成，cancelled=已取消。'
           },
           {
             role: 'user',
