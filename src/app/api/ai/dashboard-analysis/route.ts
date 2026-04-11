@@ -18,6 +18,12 @@ interface DesignData {
   id: string
   customer_id: string | null
   status: string
+  title: string | null
+  description: string | null
+  room_count: number | null
+  total_area: number | null
+  final_price: number | null
+  price: number | null
   created_at: string
 }
 
@@ -26,6 +32,8 @@ interface InstallationData {
   customer_id: string | null
   design_id: string | null
   status: string
+  scheduled_date: string | null
+  feedback: string | null
   created_at: string
 }
 
@@ -46,9 +54,22 @@ interface AnalysisCustomer {
   has_design: boolean
   design_status: string | null
   design_count: number
+  design_details: Array<{
+    title: string | null
+    description: string | null
+    room_count: number | null
+    total_area: number | null
+    price: number | null
+    status: string
+  }>
   has_installation: boolean
   installation_status: string | null
   installation_count: number
+  installation_details: Array<{
+    scheduled_date: string | null
+    feedback: string | null
+    status: string
+  }>
 }
 
 // GET: Retrieve latest analysis or history
@@ -151,11 +172,11 @@ export async function POST(request: NextRequest) {
       .eq('organization_id', orgId),
     adminSupabase
       .from('designs')
-      .select('id, customer_id, status, created_at')
+      .select('id, customer_id, status, title, description, room_count, total_area, final_price, price, created_at')
       .eq('organization_id', orgId),
     adminSupabase
       .from('installations')
-      .select('id, customer_id, design_id, status, created_at')
+      .select('id, customer_id, design_id, status, scheduled_date, feedback, created_at')
       .eq('organization_id', orgId)
       .not('status', 'in', '(completed,cancelled)'),
   ])
@@ -186,6 +207,23 @@ export async function POST(request: NextRequest) {
     const customerDesigns = designs.filter(d => d.customer_id === c.id)
     const customerInstallations = installations.filter(i => i.customer_id === c.id)
 
+    // 收集方案的详细信息
+    const designDetails = customerDesigns.map(d => ({
+      title: d.title,
+      description: d.description,
+      room_count: d.room_count,
+      total_area: d.total_area,
+      price: d.final_price || d.price,
+      status: d.status,
+    }))
+
+    // 收集安装的详细信息
+    const installationDetails = customerInstallations.map(i => ({
+      scheduled_date: i.scheduled_date,
+      feedback: i.feedback,
+      status: i.status,
+    }))
+
     return {
       id: c.id,
       name: c.name,
@@ -199,13 +237,15 @@ export async function POST(request: NextRequest) {
       last_followup_content: lastFollowUp?.content || null,
       days_since_last_followup: daysSinceLastFollowUp,
       follow_ups_count: sortedFollowUps.length,
-      follow_ups_history: sortedFollowUps.slice(0, 5), // 最近5条跟进记录
+      follow_ups_history: sortedFollowUps.slice(0, 5),
       has_design: customerDesigns.length > 0,
       design_status: customerDesigns[0]?.status || null,
       design_count: customerDesigns.length,
+      design_details: designDetails,
       has_installation: customerInstallations.length > 0,
       installation_status: customerInstallations[0]?.status || null,
       installation_count: customerInstallations.length,
+      installation_details: installationDetails,
     }
   })
 
