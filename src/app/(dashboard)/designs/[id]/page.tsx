@@ -274,7 +274,7 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
             }}>
               <FormSubmitButton>确认方案并创建安装单</FormSubmitButton>
             </form>
-            {user?.role === 'designer' && user.id === design.created_by && (
+            {user?.role === 'designer' && (design.created_by === null || user.id === design.created_by) && (
               <form action={async () => {
                 'use server'
                 await rollbackDesignAction(design.id, 'draft')
@@ -294,7 +294,7 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
               查看安装单 →
             </Link>
           </div>
-          {user?.role === 'designer' && user.id === design.created_by && (
+          {user?.role === 'designer' && (design.created_by === null || user.id === design.created_by) && (
             <form action={async () => {
               'use server'
               await rollbackDesignAction(design.id, 'submitted')
