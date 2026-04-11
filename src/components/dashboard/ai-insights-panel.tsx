@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Brain, AlertTriangle, TrendingUp, Users, Clock, Lightbulb, X, ChevronDown, ChevronUp, Sparkles, RefreshCw } from 'lucide-react'
+import { Brain, AlertTriangle, TrendingUp, Users, Clock, Lightbulb, X, ChevronDown, ChevronUp, Sparkles, RefreshCw, History, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface CustomerInsight {
   id: string
@@ -31,6 +32,14 @@ interface AnalysisResult {
   summary: string
   analyzed_at: string
   total_customers: number
+}
+
+interface HistoryItem {
+  id: string
+  summary: string
+  total_customers: number
+  created_at: string
+  insights: Insight[]
 }
 
 const categoryConfig: Record<string, { icon: any; color: string; bgColor: string; label: string }> = {
@@ -181,6 +190,10 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [isManager, setIsManager] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [historyList, setHistoryList] = useState<HistoryItem[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [selectedHistory, setSelectedHistory] = useState<HistoryItem | null>(null)
 
   // Check if user can run analysis
   useEffect(() => {
@@ -241,6 +254,32 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
     setError(null)
   }
 
+  const loadHistory = async () => {
+    setLoadingHistory(true)
+    try {
+      const response = await fetch('/api/ai/dashboard-analysis?history=true', {
+        method: 'GET',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setHistoryList(data.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch history:', err)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const openHistory = async () => {
+    setShowHistory(true)
+    await loadHistory()
+  }
+
+  const viewHistoryItem = (item: HistoryItem) => {
+    setSelectedHistory(item)
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -266,10 +305,16 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
             <h3 className="text-[16px] font-semibold text-apple-gray-900 mb-1">AI 运营分析</h3>
             <p className="text-[13px] text-apple-gray-500 mb-4 text-center">基于客户数据，AI 为你提供运营洞察</p>
             {isManager ? (
-              <Button onClick={runAnalysis} size="lg" className="gap-2 bg-apple-purple hover:bg-apple-purple/90">
-                <Brain className="w-4 h-4" />
-                开始 AI 分析
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={runAnalysis} size="lg" className="gap-2 bg-apple-purple hover:bg-apple-purple/90">
+                  <Brain className="w-4 h-4" />
+                  开始 AI 分析
+                </Button>
+                <Button variant="outline" size="lg" onClick={openHistory} className="gap-2">
+                  <History className="w-4 h-4" />
+                  历史记录
+                </Button>
+              </div>
             ) : (
               <p className="text-[13px] text-apple-gray-400">仅店长和管理员可以使用此功能</p>
             )}
@@ -280,79 +325,153 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-apple-purple/10 flex items-center justify-center">
-              <Brain className="w-5 h-5 text-apple-purple" />
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-apple-purple/10 flex items-center justify-center">
+                <Brain className="w-5 h-5 text-apple-purple" />
+              </div>
+              <div>
+                <CardTitle className="text-[16px] font-semibold">AI 运营分析</CardTitle>
+                <p className="text-[12px] text-apple-gray-500 font-normal">
+                  {analysisResult?.analyzed_at
+                    ? `最近分析于 ${new Date(analysisResult.analyzed_at).toLocaleString('zh-CN')}`
+                    : '点击分析获取洞察'}
+                </p>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-[16px] font-semibold">AI 运营分析</CardTitle>
-              <p className="text-[12px] text-apple-gray-500 font-normal">
-                {analysisResult?.analyzed_at
-                  ? `最近分析于 ${new Date(analysisResult.analyzed_at).toLocaleString('zh-CN')}`
-                  : '点击分析获取洞察'}
-              </p>
+            <div className="flex items-center gap-2">
+              {isManager && (
+                <Button variant="outline" size="sm" onClick={openHistory} className="gap-1">
+                  <History className="w-3 h-3" />
+                  历史
+                </Button>
+              )}
+              {isManager && analysisResult && (
+                <Button variant="outline" size="sm" onClick={runAnalysis} disabled={isAnalyzing} className="gap-1">
+                  {isAnalyzing ? (
+                    <>
+                      <div className="w-3 h-3 rounded-full border-2 border-apple-purple/30 border-t-apple-purple animate-spin" />
+                      分析中...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-3 h-3" />
+                      重新分析
+                    </>
+                  )}
+                </Button>
+              )}
+              {analysisResult && (
+                <Button variant="ghost" size="icon-sm" onClick={closeAnalysis}>
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isManager && analysisResult && (
-              <Button variant="outline" size="sm" onClick={runAnalysis} disabled={isAnalyzing} className="gap-1">
-                {isAnalyzing ? (
-                  <>
-                    <div className="w-3 h-3 rounded-full border-2 border-apple-purple/30 border-t-apple-purple animate-spin" />
-                    分析中...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-3 h-3" />
-                    重新分析
-                  </>
-                )}
-              </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Error state */}
+          {error && (
+            <div className="bg-red-50 rounded-xl p-4 text-red-600 text-[13px]">
+              {error}
+            </div>
+          )}
+
+          {/* Loading state */}
+          {isAnalyzing && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="w-10 h-10 rounded-full border-4 border-apple-purple/20 border-t-apple-purple animate-spin mb-4" />
+              <p className="text-[14px] text-apple-gray-600">AI 正在分析客户数据...</p>
+              <p className="text-[12px] text-apple-gray-400 mt-1">请稍候</p>
+            </div>
+          )}
+
+          {/* Insights grid */}
+          {analysisResult && !isAnalyzing && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {analysisResult.insights.map((insight, index) => (
+                  <InsightCard key={index} insight={insight} />
+                ))}
+              </div>
+
+              {/* Summary footer */}
+              <div className="text-center text-[12px] text-apple-gray-500 py-2 border-t border-apple-gray-100 pt-3">
+                共分析 {analysisResult.total_customers} 位客户
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History Dialog */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-[16px] font-semibold">AI 运营分析历史记录</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
+            {loadingHistory ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-8 h-8 rounded-full border-2 border-apple-purple/30 border-t-apple-purple animate-spin" />
+              </div>
+            ) : historyList.length === 0 ? (
+              <div className="text-center py-8 text-[14px] text-apple-gray-500">
+                暂无历史记录
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {historyList.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-apple-gray-50 cursor-pointer transition-colors"
+                    onClick={() => viewHistoryItem(item)}
+                  >
+                    <div>
+                      <p className="text-[14px] font-medium text-apple-gray-900">
+                        {new Date(item.created_at).toLocaleString('zh-CN')}
+                      </p>
+                      <p className="text-[12px] text-apple-gray-500">
+                        分析 {item.total_customers} 位客户
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="gap-1">
+                      <Eye className="w-3 h-3" />
+                      查看
+                    </Button>
+                  </div>
+                ))}
+              </div>
             )}
-            {analysisResult && (
-              <Button variant="ghost" size="icon-sm" onClick={closeAnalysis}>
-                <X className="w-4 h-4" />
-              </Button>
-            )}
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Error state */}
-        {error && (
-          <div className="bg-red-50 rounded-xl p-4 text-red-600 text-[13px]">
-            {error}
-          </div>
-        )}
+        </DialogContent>
+      </Dialog>
 
-        {/* Loading state */}
-        {isAnalyzing && (
-          <div className="flex flex-col items-center justify-center py-8">
-            <div className="w-10 h-10 rounded-full border-4 border-apple-purple/20 border-t-apple-purple animate-spin mb-4" />
-            <p className="text-[14px] text-apple-gray-600">AI 正在分析客户数据...</p>
-            <p className="text-[12px] text-apple-gray-400 mt-1">请稍候</p>
-          </div>
-        )}
-
-        {/* Insights grid */}
-        {analysisResult && !isAnalyzing && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {analysisResult.insights.map((insight, index) => (
-                <InsightCard key={index} insight={insight} />
-              ))}
+      {/* History Detail Dialog */}
+      {selectedHistory && (
+        <Dialog open={!!selectedHistory} onOpenChange={() => setSelectedHistory(null)}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="text-[16px] font-semibold">
+                {new Date(selectedHistory.created_at).toLocaleString('zh-CN')} 的分析结果
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {selectedHistory.insights.map((insight, index) => (
+                  <InsightCard key={index} insight={insight} />
+                ))}
+              </div>
+              <div className="text-center text-[12px] text-apple-gray-500 py-2 border-t">
+                共分析 {selectedHistory.total_customers} 位客户
+              </div>
             </div>
-
-            {/* Summary footer */}
-            <div className="text-center text-[12px] text-apple-gray-500 py-2 border-t border-apple-gray-100 pt-3">
-              共分析 {analysisResult.total_customers} 位客户
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   )
 }

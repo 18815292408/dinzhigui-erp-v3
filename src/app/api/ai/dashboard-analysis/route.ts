@@ -50,7 +50,7 @@ interface AnalysisCustomer {
   installation_status: string | null
 }
 
-// GET: Retrieve latest analysis from last 7 days
+// GET: Retrieve latest analysis or history
 export async function GET(request: NextRequest) {
   const sessionCookie = request.cookies.get('session')
   if (!sessionCookie) {
@@ -64,6 +64,30 @@ export async function GET(request: NextRequest) {
 
   const adminSupabase = await createAdminClient()
   const orgId = user.organization_id
+  const { searchParams } = new URL(request.url)
+  const history = searchParams.get('history') === 'true'
+
+  if (history) {
+    // Get all history (last 90 days by default)
+    const days = parseInt(searchParams.get('days') || '90')
+    const dateLimit = new Date()
+    dateLimit.setDate(dateLimit.getDate() - days)
+
+    const { data, error } = await adminSupabase
+      .from('dashboard_ai_analysis')
+      .select('id, insights, summary, total_customers, created_at')
+      .eq('organization_id', orgId)
+      .gte('created_at', dateLimit.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (error) {
+      console.error('Failed to fetch analysis history:', error)
+      return NextResponse.json({ error: '获取历史记录失败' }, { status: 500 })
+    }
+
+    return NextResponse.json({ data: data || [] })
+  }
 
   // Get latest analysis from last 7 days
   const weekAgo = new Date()
