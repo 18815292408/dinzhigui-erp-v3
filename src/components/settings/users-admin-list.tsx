@@ -23,11 +23,11 @@ const roleColors: Record<string, string> = {
 
 // 有效期套餐选项
 const expiryOptions = [
-  { label: '24小时体验', hours: 24 },
+  { label: '24小时', hours: 24 },
   { label: '1个月', hours: 24 * 30 },
   { label: '1年', hours: 24 * 365 },
   { label: '10年', hours: 24 * 365 * 10 },
-  { label: '永久有效', hours: 0 }, // 0 表示永不过期
+  { label: '永久', hours: -1 }, // -1 表示永不过期
 ]
 
 // 计算剩余时间显示
@@ -57,6 +57,12 @@ function getExpiryDisplay(expiresAt: string | null): { text: string; color: stri
   return { text: `剩余${years}年`, color: 'text-green-600' }
 }
 
+// 根据 hours 计算过期时间
+function hoursToExpiresAt(hours: number): string | null {
+  if (hours === -1) return null // 永久
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
+}
+
 interface Props {
   users: any[]
 }
@@ -65,35 +71,23 @@ export function UsersAdminList({ users }: Props) {
   const router = useRouter()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editRole, setEditRole] = useState('')
-  const [editExpiry, setEditExpiry] = useState<string>('')
+  const [editExpiry, setEditExpiry] = useState<string | null>(null) // null = 永久
 
   const handleEdit = (user: any) => {
     setEditingId(user.id)
     setEditRole(user.role)
-    setEditExpiry(user.expires_at || '')
+    setEditExpiry(user.expires_at || null)
   }
 
   const handleSave = async (userId: string) => {
-    // 将空字符串转换为 null 表示永久有效
-    const expiresAt = editExpiry === '' ? null : editExpiry
     await fetch(`/api/admin/users/${userId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ role: editRole, expires_at: expiresAt }),
+      body: JSON.stringify({ role: editRole, expires_at: editExpiry }),
     })
     setEditingId(null)
     router.refresh()
-  }
-
-  const handleExpiryChange = (hours: number) => {
-    if (hours === 0) {
-      // 永久有效
-      setEditExpiry('')
-    } else {
-      const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
-      setEditExpiry(expiresAt)
-    }
   }
 
   const handleDelete = async (userId: string, userName: string) => {
@@ -109,6 +103,7 @@ export function UsersAdminList({ users }: Props) {
     <div className="space-y-3">
       {users.map((u: any) => {
         const expiryDisplay = getExpiryDisplay(u.expires_at)
+        const isEditing = editingId === u.id
         return (
           <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg">
             <div className="flex items-center gap-4">
@@ -126,9 +121,9 @@ export function UsersAdminList({ users }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {editingId === u.id ? (
+              {isEditing ? (
                 <>
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-2">
                     <select
                       className="px-2 py-1 border rounded text-sm"
                       value={editRole}
@@ -138,30 +133,23 @@ export function UsersAdminList({ users }: Props) {
                         <option key={value} value={value}>{label}</option>
                       ))}
                     </select>
-                    <select
-                      className="px-2 py-1 border rounded text-sm"
-                      value={editExpiry === '' ? 'permanent' : 'custom'}
-                      onChange={(e) => {
-                        if (e.target.value === 'permanent') {
-                          setEditExpiry('')
-                        } else {
-                          // 默认选择1年
-                          const expiresAt = new Date(Date.now() + 24 * 365 * 60 * 60 * 1000).toISOString()
-                          setEditExpiry(expiresAt)
-                        }
-                      }}
-                    >
-                      <option value="permanent">永久有效</option>
-                      <option value="custom">设置有效期</option>
-                    </select>
-                    {editExpiry !== '' && (
-                      <input
-                        type="datetime-local"
-                        className="px-2 py-1 border rounded text-sm"
-                        value={editExpiry.slice(0, 16)}
-                        onChange={(e) => setEditExpiry(new Date(e.target.value).toISOString())}
-                      />
-                    )}
+                    <div className="flex flex-wrap gap-1">
+                      {expiryOptions.map((opt) => (
+                        <button
+                          key={opt.hours}
+                          type="button"
+                          className={`px-2 py-1 text-xs rounded border ${
+                            (opt.hours === -1 && editExpiry === null) ||
+                            (opt.hours !== -1 && editExpiry === hoursToExpiresAt(opt.hours))
+                              ? 'bg-blue-100 border-blue-500 text-blue-700'
+                              : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
+                          }`}
+                          onClick={() => setEditExpiry(opt.hours === -1 ? null : hoursToExpiresAt(opt.hours))}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <Button size="sm" onClick={() => handleSave(u.id)}>保存</Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>取消</Button>
