@@ -10,8 +10,6 @@ interface CustomerData {
   house_type: string | null
   requirements: string | null
   estimated_price: number | null
-  intention_level: string | null
-  intention_reason: string | null
   follow_ups: any
   created_at: string
 }
@@ -38,16 +36,19 @@ interface AnalysisCustomer {
   house_type: string | null
   requirements: string | null
   estimated_price: number | null
-  intention_level: string | null
-  intention_reason: string | null
   created_at: string
   days_since_created: number
   last_followup_date: string | null
+  last_followup_content: string | null
   days_since_last_followup: number | null
+  follow_ups_count: number
+  follow_ups_history: Array<{ content: string; date: string }>
   has_design: boolean
   design_status: string | null
+  design_count: number
   has_installation: boolean
   installation_status: string | null
+  installation_count: number
 }
 
 // GET: Retrieve latest analysis or history
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest) {
   const [customersResult, designsResult, installationsResult] = await Promise.all([
     adminSupabase
       .from('customers')
-      .select('id, name, phone, house_type, requirements, estimated_price, intention_level, intention_reason, follow_ups, created_at')
+      .select('id, name, phone, house_type, requirements, estimated_price, follow_ups, created_at')
       .eq('organization_id', orgId),
     adminSupabase
       .from('designs')
@@ -172,9 +173,10 @@ export async function POST(request: NextRequest) {
       followUps = typeof c.follow_ups === 'string' ? JSON.parse(c.follow_ups) : (c.follow_ups || [])
     } catch { }
 
-    const lastFollowUp = followUps.length > 0
-      ? followUps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
-      : null
+    // Sort follow-ups by date descending (newest first)
+    const sortedFollowUps = followUps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    const lastFollowUp = sortedFollowUps[0] || null
 
     const daysSinceCreated = Math.floor((now.getTime() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))
     const daysSinceLastFollowUp = lastFollowUp
@@ -191,16 +193,19 @@ export async function POST(request: NextRequest) {
       house_type: c.house_type,
       requirements: c.requirements,
       estimated_price: c.estimated_price,
-      intention_level: c.intention_level,
-      intention_reason: c.intention_reason,
       created_at: c.created_at,
       days_since_created: daysSinceCreated,
       last_followup_date: lastFollowUp?.date || null,
+      last_followup_content: lastFollowUp?.content || null,
       days_since_last_followup: daysSinceLastFollowUp,
+      follow_ups_count: sortedFollowUps.length,
+      follow_ups_history: sortedFollowUps.slice(0, 5), // 最近5条跟进记录
       has_design: customerDesigns.length > 0,
       design_status: customerDesigns[0]?.status || null,
+      design_count: customerDesigns.length,
       has_installation: customerInstallations.length > 0,
       installation_status: customerInstallations[0]?.status || null,
+      installation_count: customerInstallations.length,
     }
   })
 
@@ -215,13 +220,20 @@ export async function POST(request: NextRequest) {
 客户数据：
 ${JSON.stringify(customerAnalysisData, null, 2)}
 
+请仔细分析每个客户的完整数据，包括：
+- follow_ups_history: 最近的跟进记录（包含内容和时间）
+- follow_ups_count: 跟进总次数
+- intention_reason: AI分析理由
+- requirements: 客户需求描述
+- 跟进记录中的内容能反映客户的真实意向和需求变化
+
 请按以下6个类别生成洞察（必须返回严格JSON格式）：
-1. **immediate_followup**: 需要立即跟进的高意向客户（高意向但超过7天未跟进，或意向为high但无跟进记录）
-2. **risk_customers**: 风险客户（低意向且超过14天未跟进，或意向为low且从未跟进）
-3. **ready_to_close**: 可以成交的客户（高意向且有已确认的设计方案）
-4. **silent_customers**: 沉默客户（有设计方案但超过30天无进展，且非高意向）
+1. **immediate_followup**: 需要立即跟进的客户（有重要跟进内容待处理，或超过7天未跟进）
+2. **risk_customers**: 风险客户（超过14天未跟进，或跟进记录显示意向下降或冷淡）
+3. **ready_to_close**: 可以成交的客户（有已确认的设计方案，或跟进记录显示客户已确定意向）
+4. **silent_customers**: 沉默客户（有设计方案但超过30天无进展，或跟进记录显示长时间无互动）
 5. **new_customers**: 本周新客户（7天内新增的客户）
-6. **recommendations**: 门店运营建议（基于数据给出2-4条具体可执行的建议）
+6. **recommendations**: 门店运营建议（基于所有客户数据，给出2-4条具体可执行的建议，要结合跟进记录中的具体内容）
 
 每个类别的结构：
 - category: 类别标识
@@ -246,13 +258,12 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
 
 【重要】输出规范：
 - 所有文字必须使用中文，禁止出现英文字段名或英文单词（除了客户姓名拼音）
-- intention_level字段值映射：high=高意向，medium=中意向，low=低意向，null=未评估
 - design_status字段值映射：draft=草稿，submitted=已提交，confirmed=已确认
 - installation_status字段值映射：pending=待处理，in_progress=进行中，completed=已完成，cancelled=已取消
 - recommendations中的客户名称必须使用真实姓名，不要用姓氏缩写
-- 每个recommendations建议要具体，包含客户姓名或具体情况，不要说"某客户"或"某个"
+- 每个recommendations建议要具体，结合跟进记录中的具体内容和客户情况，不要说"某客户"或"某个"
 - 必须返回严格JSON格式，不要有markdown代码块
-- 每个customer对象只需包含id, name, phone, intention_level, days_since_last_followup, days_since_created, design_status字段
+- 每个customer对象只需包含id, name, phone, days_since_last_followup, days_since_created, design_status字段
 - 如果某类别没有客户，返回空数组
 - recommendations类别没有customers字段，只有recommendations数组`
 
@@ -268,7 +279,7 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
         messages: [
           {
             role: 'system',
-            content: '你是一个专业的全屋定制门店运营顾问。请分析客户数据并给出可操作的建议。只返回JSON，不要有其他文字。所有输出必须使用中文，禁止出现英文字段名或英文单词（除了客户姓名拼音）。意向等级映射：high=高意向，medium=中意向，low=低意向，null=未评估。方案状态映射：draft=草稿，submitted=已提交，confirmed=已确认。安装状态映射：pending=待处理，in_progress=进行中，completed=已完成，cancelled=已取消。'
+            content: '你是一个专业的全屋定制门店运营顾问。请分析客户数据并给出可操作的建议。只返回JSON，不要有其他文字。所有输出必须使用中文，禁止出现英文字段名或英文单词（除了客户姓名拼音）。方案状态映射：draft=草稿，submitted=已提交，confirmed=已确认。安装状态映射：pending=待处理，in_progress=进行中，completed=已完成，cancelled=已取消。'
           },
           {
             role: 'user',
