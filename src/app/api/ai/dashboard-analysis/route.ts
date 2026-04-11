@@ -131,7 +131,8 @@ export async function POST(request: NextRequest) {
     adminSupabase
       .from('installations')
       .select('id, customer_id, design_id, status, created_at')
-      .eq('organization_id', orgId),
+      .eq('organization_id', orgId)
+      .not('status', 'in', '(completed,cancelled)'),
   ])
 
   const customers: CustomerData[] = customersResult.data || []
