@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERP弹窗通知系统设计</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f7; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { text-align: center; color: #1d1d1f; margin-bottom: 10px; }
+    .subtitle { text-align: center; color: #86868b; margin-bottom: 40px; }
+    .role-section { margin-bottom: 60px; }
+    .role-title { color: #1d1d1f; font-size: 20px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #0071e3; }
+    .role-desc { color: #86868b; margin-bottom: 20px; font-size: 14px; }
+
+    /* 弹窗容器 */
+    .modal-wrapper { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
+    .modal-card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; width: 360px; }
+    .modal-header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+    .modal-header.urgent { background: #ff3b30; color: white; }
+    .modal-header.warning { background: #ff9500; color: white; }
+    .modal-header.normal { background: #0071e3; color: white; }
+    .modal-header.info { background: #5856d6; color: white; }
+    .modal-icon { width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-subtitle { font-size: 12px; opacity: 0.9; }
+    .modal-body { padding: 20px; }
+    .modal-info { margin-bottom: 16px; }
+    .modal-info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .modal-info-label { color: #86868b; font-size: 13px; }
+    .modal-info-value { color: #1d1d1f; font-size: 13px; font-weight: 500; }
+    .modal-highlight { background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 16px; }
+    .modal-highlight-label { font-size: 11px; color: #86868b; text-transform: uppercase; margin-bottom: 4px; }
+    .modal-highlight-value { font-size: 18px; font-weight: 600; color: #1d1d1f; }
+    .modal-footer { padding: 16px 20px; background: #fafafa; display: flex; gap: 12px; justify-content: flex-end; }
+    .btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .btn-primary { background: #0071e3; color: white; }
+    .btn-secondary { background: #e5e5e5; color: #1d1d1f; }
+    .btn-danger { background: #ff3b30; color: white; }
+
+    /* 优先级标签 */
+    .priority-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .priority-urgent { background: #ff3b30; color: white; }
+    .priority-warning { background: #ff9500; color: white; }
+    .priority-normal { background: #0071e3; color: white; }
+
+    /* 快捷操作 */
+    .quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .quick-btn { padding: 8px 12px; background: #f0f0f0; border-radius: 6px; font-size: 12px; color: #1d1d1f; border: none; cursor: pointer; }
+    .quick-btn:hover { background: #e0e0e0; }
+
+    /* 状态指示器 */
+    .status-indicator { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.red { background: #ff3b30; }
+    .status-dot.orange { background: #ff9500; }
+    .status-dot.green { background: #34c759; }
+
+    /* 说明区域 */
+    .legend { background: white; padding: 20px; border-radius: 12px; margin-top: 40px; }
+    .legend h3 { margin-bottom: 16px; }
+    .legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+    .legend-item { display: flex; align-items: flex-start; gap: 12px; }
+    .legend-color { width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; }
+    .legend-text h4 { font-size: 14px; margin-bottom: 2px; }
+    .legend-text p { font-size: 12px; color: #86868b; }
+
+    /* 设计说明 */
+    .design-notes { background: #1d1d1f; color: white; padding: 30px; border-radius: 12px; margin-top: 40px; }
+    .design-notes h3 { margin-bottom: 20px; }
+    .note-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .note-item h4 { color: #0071e3; margin-bottom: 8px; }
+    .note-item p { font-size: 14px; line-height: 1.6; color: #f5f5f7; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ERP系统弹窗通知设计</h1>
+    <p class="subtitle">根据岗位和紧急程度设计不同的弹窗样式</p>
+
+    <!-- 图例 -->
+    <div class="legend">
+      <h3>优先级定义</h3>
+      <div class="legend-grid">
+        <div class="legend-item">
+          <div class="legend-color" style="background: #ff3b30;"></div>
+          <div class="legend-text">
+            <h4>紧急 - 必须立即处理</h4>
+            <p>超时、待打款、新订单等，需要马上处理的事项</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #ff9500;"></div>
+          <div class="legend-text">
+            <h4>重要 - 今天内处理</h4>
+            <p>提前1天提醒等，需要尽快处理的事项</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #0071e3;"></div>
+          <div class="legend-text">
+            <h4>一般 - 待处理</h4>
+            <p>常规流转通知，可以稍后处理</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #5856d6;"></div>
+          <div class="legend-text">
+            <h4>信息 - 已知会即可</h4>
+            <p>完成类通知，确认即可</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设计师弹窗 -->
+    <div class="role-section">
+      <h2 class="role-title">👨‍🎨 设计师</h2>
+      <p class="role-desc">设计师是系统的核心角色，涉及多个需要提醒的节点</p>
+
+      <div class="modal-wrapper">
+        <!-- 紧急：新订单派发 -->
+        <div class="modal-card">
+          <div class="modal-header urgent">
+            <div class="modal-icon">📋</div>
+            <div>
+              <div class="modal-title">新订单派发</div>
+              <div class="modal-subtitle">需要立即处理</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">客户信息</div>
+              <div class="modal-highlight-value">张先生｜江南大院 120㎡</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">签单金额</span>
+                <span class="modal-info-value">¥128,000</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">房型</span>
+                <span class="modal-info-value">三室两厅</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">派单时间</span>
+                <span class="modal-info-value">今天 14:30</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-urgent">紧急</span>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">稍后提醒</button>
+            <button class="btn btn-primary">立即接单</button>
+          </div>
+        </div>
+
+        <!-- 紧急：出图超时 -->
+        <div class="modal-card">
+          <div class="modal-header urgent">
+            <div class="modal-icon">⚠️</div>
+            <div>
+              <div class="modal-title">出图超时提醒</div>
+              <div class="modal-subtitle">已超过约定时间</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">订单编号</div>
+              <div class="modal-highlight-value">DD-20260415-0032</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">约定出图</span>
+                <span class="modal-info-value" style="color:#ff3b30;">已超时2天</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">客户</span>
+                <span class="modal-info-value">李女士｜翡翠湾</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">超时原因</span>
+                <span class="modal-info-value">未填写</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-urgent">紧急</span>
+            <div class="quick-actions">
+              <button class="quick-btn">📝 填写原因</button>
+              <button class="quick-btn">📤 提交图纸</button>
+              <button class="quick-btn">📞 联系客户</button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-danger">立即处理</button>
+          </div>
+        </div>
+
+        <!-- 重要：出图提前1天 -->
+        <div class="modal-card">
+          <div class="modal-header warning">
+            <div class="modal-icon">⏰</div>
+            <div>
+              <div class="modal-title">出图提醒</div>
+              <div class="modal-subtitle">距离截止还剩1天</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">剩余时间</div>
+              <div class="modal-highlight-value" style="color:#ff9500;">1天</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">约定出图</span>
+                <span class="modal-info-value">明天 18:00</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">客户</span>
+                <span class="modal-info-value">王先生｜绿城花园</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">方案状态</span>
+                <span class="modal-info-value">外观检查中</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-warning">重要</span>
+            <div class="status-indicator">
+              <span class="status-dot orange"></span>
+              <span style="font-size:12px;color:#86868b;">需要在明天18:00前完成出图</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">知道了</button>
+            <button class="btn btn-primary">查看详情</button>
+          </div>
+        </div>
+
+        <!-- 重要：出货提前1周 -->
+        <div class="modal-card">
+          <div class="modal-header warning">
+            <div class="modal-icon">🚚</div>
+            <div>
+              <div class="modal-title">出货时间提醒</div>
+              <div class="modal-subtitle">距离预计出货还剩7天</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">订单编号</div>
+              <div class="modal-highlight-value">DD-20260410-0018</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">预计出货</span>
+                <span class="modal-info-value">2026-04-28</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">客户</span>
+                <span class="modal-info-value">赵女士｜万科城市花园</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">工厂</span>
+                <span class="modal-info-value">A厂(主)、B厂(辅)</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-warning">重要</span>
+            <div class="quick-actions">
+              <button class="quick-btn">📦 确认出货</button>
+              <button class="quick-btn">⚠️ 填写异常</button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">知道了</button>
+            <button class="btn btn-primary">填写出货</button>
+          </div>
+        </div>
+
+        <!-- 一般：方案已确认 -->
+        <div class="modal-card">
+          <div class="modal-header normal">
+            <div class="modal-icon">✅</div>
+            <div>
+              <div class="modal-title">方案已确认</div>
+              <div class="modal-subtitle">可以开始下单</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">客户</div>
+              <div class="modal-highlight-value">孙先生｜保利公园</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">确认时间</span>
+                <span class="modal-info-value">今天 10:15</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">订单金额</span>
+                <span class="modal-info-value">¥98,000</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-normal">待处理</span>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">稍后</button>
+            <button class="btn btn-primary">去下单</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 老板弹窗 -->
+    <div class="role-section">
+      <h2 class="role-title">👔 老板</h2>
+      <p class="role-desc">老板关注财务相关操作，重点是打款确认</p>
+
+      <div class="modal-wrapper">
+        <!-- 紧急：待打款 -->
+        <div class="modal-card">
+          <div class="modal-header urgent">
+            <div class="modal-icon">💰</div>
+            <div>
+              <div class="modal-title">待打款订单</div>
+              <div class="modal-subtitle">需要您确认打款</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">订单编号</div>
+              <div class="modal-highlight-value">DD-20260418-0045</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">客户</span>
+                <span class="modal-info-value">周女士｜龙湖天街</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">订单金额</span>
+                <span class="modal-info-value" style="font-size:16px;color:#ff3b30;font-weight:700;">¥156,000</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">拆分工厂</span>
+                <span class="modal-info-value">2家</span>
+              </div>
+            </div>
+            <div style="background:#fff3f3;padding:10px;border-radius:6px;margin-bottom:12px;">
+              <div style="font-size:12px;color:#ff3b30;margin-bottom:4px;">⚠️ 对单完成已3天</div>
+              <div style="font-size:11px;color:#86868b;">催促：设计师催促打款</div>
+            </div>
+            <span class="priority-badge priority-urgent">紧急</span>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">查看详情</button>
+            <button class="btn btn-primary">确认打款</button>
+          </div>
+        </div>
+
+        <!-- 重要：打款记录 -->
+        <div class="modal-card">
+          <div class="modal-header warning">
+            <div class="modal-icon">📊</div>
+            <div>
+              <div class="modal-title">打款记录确认</div>
+              <div class="modal-subtitle">请核对以下信息</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:16px;">
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;">
+                <span style="color:#86868b;font-size:13px;">A厂-衣柜</span>
+                <span style="font-weight:500;">¥68,000</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;">
+                <span style="color:#86868b;font-size:13px;">B厂-橱柜</span>
+                <span style="font-weight:500;">¥58,000</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;">
+                <span style="color:#86868b;font-size:13px;">C厂-浴室柜</span>
+                <span style="font-weight:500;">¥30,000</span>
+              </div>
+            </div>
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">打款总额</div>
+              <div class="modal-highlight-value">¥156,000</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">取消</button>
+            <button class="btn btn-primary">确认打款</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 销售弹窗 -->
+    <div class="role-section">
+      <h2 class="role-title">👩‍💼 销售</h2>
+      <p class="role-desc">销售主要接收方案确认和安装完成通知</p>
+
+      <div class="modal-wrapper">
+        <!-- 信息：方案已确认 -->
+        <div class="modal-card">
+          <div class="modal-header normal">
+            <div class="modal-icon">✅</div>
+            <div>
+              <div class="modal-title">方案已确认</div>
+              <div class="modal-subtitle">客户方案通过审核</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">客户</div>
+              <div class="modal-highlight-value">钱先生｜华润橡树湾</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">方案</span>
+                <span class="modal-info-value">三室两厅｜¥112,000</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">确认时间</span>
+                <span class="modal-info-value">今天 15:30</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-normal">通知</span>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-primary">知道了</button>
+          </div>
+        </div>
+
+        <!-- 信息：安装完成 -->
+        <div class="modal-card">
+          <div class="modal-header info">
+            <div class="modal-icon">🎉</div>
+            <div>
+              <div class="modal-title">安装完成</div>
+              <div class="modal-subtitle">订单已全部完成</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">客户</div>
+              <div class="modal-highlight-value">吴女士｜绿地中心</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">完成时间</span>
+                <span class="modal-info-value">今天 17:45</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">安装人员</span>
+                <span class="modal-info-value">张师傅</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-normal">通知</span>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">查看详情</button>
+            <button class="btn btn-primary">知道了</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 安装/售后弹窗 -->
+    <div class="role-section">
+      <h2 class="role-title">🔧 安装/售后</h2>
+      <p class="role-desc">安装/售后接收订单流转，负责出货到安装全流程</p>
+
+      <div class="modal-wrapper">
+        <!-- 紧急：新订单待安装 -->
+        <div class="modal-card">
+          <div class="modal-header urgent">
+            <div class="modal-icon">📦</div>
+            <div>
+              <div class="modal-title">新订单待安装</div>
+              <div class="modal-subtitle">请确认接单</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">客户信息</div>
+              <div class="modal-highlight-value">郑先生｜世茂滨江 145㎡</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">订单编号</span>
+                <span class="modal-info-value">DD-20260419-0056</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">预计出货</span>
+                <span class="modal-info-value">2026-04-25</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">指派设计师</span>
+                <span class="modal-info-value">李设计师</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-urgent">紧急</span>
+            <div class="quick-actions">
+              <button class="quick-btn">✅ 确认接单</button>
+              <button class="quick-btn">⚠️ 有问题</button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">稍后处理</button>
+            <button class="btn btn-primary">立即接单</button>
+          </div>
+        </div>
+
+        <!-- 一般：补件记录 -->
+        <div class="modal-card">
+          <div class="modal-header normal">
+            <div class="modal-icon">🔧</div>
+            <div>
+              <div class="modal-title">补件记录</div>
+              <div class="modal-subtitle">记录维修/补件情况</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div class="modal-highlight">
+              <div class="modal-highlight-label">订单编号</div>
+              <div class="modal-highlight-value">DD-20260408-0022</div>
+            </div>
+            <div class="modal-info">
+              <div class="modal-info-row">
+                <span class="modal-info-label">客户</span>
+                <span class="modal-info-value">冯女士｜中海国际</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">补件类型</span>
+                <span class="modal-info-value">门板磕碰</span>
+              </div>
+              <div class="modal-info-row">
+                <span class="modal-info-label">处理状态</span>
+                <span class="modal-info-value" style="color:#ff9500;">处理中</span>
+              </div>
+            </div>
+            <span class="priority-badge priority-normal">待处理</span>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary">查看详情</button>
+            <button class="btn btn-primary">更新状态</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设计说明 -->
+    <div class="design-notes">
+      <h3>设计说明</h3>
+      <div class="note-grid">
+        <div class="note-item">
+          <h4>1. 弹窗大小统一</h4>
+          <p>所有弹窗统一宽度(360px)，高度根据内容自适应，保持视觉一致性</p>
+        </div>
+        <div class="note-item">
+          <h4>2. 颜色编码优先级</h4>
+          <p>红色=紧急、橙色=重要、蓝色=一般、紫色=信息，让用户一眼识别处理优先级</p>
+        </div>
+        <div class="note-item">
+          <h4>3. 重要信息突出</h4>
+          <p>使用浅色背景框+大字号突出关键信息（客户名、金额、时间）</p>
+        </div>
+        <div class="note-item">
+          <h4>4. 快捷操作按钮</h4>
+          <p>根据场景显示快捷操作按钮，减少点击步骤，提高效率</p>
+        </div>
+        <div class="note-item">
+          <h4>5. 按钮优先级</h4>
+          <p>主操作按钮放右侧用主色，辅助操作放左侧用灰色，紧急操作用红色</p>
+        </div>
+        <div class="note-item">
+          <h4>6. 状态指示器</h4>
+          <p>使用圆点+文字说明当前状态，如"已超时2天"、"正常"等</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

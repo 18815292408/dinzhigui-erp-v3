@@ -6,6 +6,7 @@ import { TimeFilter } from './time-filter'
 import { Users, FileText, Wrench, CheckCircle } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
+import { MonthlyStatsSection } from '@/components/dashboard/monthly-stats-section'
 
 async function getDashboardData() {
   const cookieStore = await cookies()
@@ -125,6 +126,11 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <RecentActivity customers={recentCustomers} />
       </div>
+
+      {/* Monthly Stats - Only for owner/manager */}
+      {(userRole === 'owner' || userRole === 'manager') && (
+        <MonthlyStatsSection />
+      )}
     </div>
   )
 }
