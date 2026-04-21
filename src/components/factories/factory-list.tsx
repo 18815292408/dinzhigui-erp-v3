@@ -3,6 +3,16 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FactoryForm } from './factory-form'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Trash2, Pencil, Plus } from 'lucide-react'
 
 interface Factory {
   id: string
@@ -12,14 +22,25 @@ interface Factory {
   address: string
 }
 
-export function FactoryList() {
-  const [factories, setFactories] = useState<Factory[]>([])
-  const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing] = useState<Factory | null>(null)
+interface FactoryListProps {
+  initialFactories: Factory[]
+  userRole?: string
+}
+
+export function FactoryList({ initialFactories, userRole }: FactoryListProps) {
+  const [factories, setFactories] = useState<Factory[]>(initialFactories)
+  const [showModal, setShowModal] = useState(false)
+  const [editingFactory, setEditingFactory] = useState<Factory | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const supabase = createClient()
 
+  const canManage = userRole === 'owner' || userRole === 'manager'
+
   useEffect(() => {
-    fetchFactories()
+    if (initialFactories.length === 0) {
+      fetchFactories()
+    }
   }, [])
 
   const fetchFactories = async () => {
@@ -27,72 +48,134 @@ export function FactoryList() {
     setFactories(data || [])
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除吗？')) return
-    await supabase.from('factories').delete().eq('id', id)
-    fetchFactories()
+  const handleAdd = () => {
+    setEditingFactory(null)
+    setShowModal(true)
   }
 
-  const handleSuccess = () => {
-    setShowForm(false)
-    setEditing(null)
-    fetchFactories()
+  const handleEdit = (factory: Factory) => {
+    setEditingFactory(factory)
+    setShowModal(true)
+  }
+
+  const handleCloseModal = () => {
+    setShowModal(false)
+    setEditingFactory(null)
+  }
+
+  const handleSuccess = async () => {
+    setShowModal(false)
+    setEditingFactory(null)
+    await fetchFactories()
+  }
+
+  const handleDelete = async (id: string) => {
+    setIsSubmitting(true)
+    const { error } = await supabase.from('factories').delete().eq('id', id)
+
+    if (error) {
+      alert('删除失败：' + error.message)
+    } else {
+      await fetchFactories()
+    }
+    setDeleteConfirmId(null)
+    setIsSubmitting(false)
   }
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">工厂管理</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-        >
-          添加工厂
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="mb-6 p-4 bg-gray-50 rounded-xl">
-          <FactoryForm
-            factory={editing}
-            onSuccess={handleSuccess}
-            onCancel={() => { setShowForm(false); setEditing(null); }}
-          />
+      {canManage && (
+        <div className="flex justify-end mb-4">
+          <Button onClick={handleAdd}>
+            <Plus className="w-4 h-4 mr-2" />
+            添加工厂
+          </Button>
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {factories.map(factory => (
-          <div key={factory.id} className="bg-white rounded-xl shadow-sm p-4">
-            <div className="flex justify-between items-start mb-3">
-              <h3 className="font-semibold text-lg">{factory.name}</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { setEditing(factory); setShowForm(true); }}
-                  className="text-blue-500 text-sm"
-                >
-                  编辑
-                </button>
-                <button
-                  onClick={() => handleDelete(factory.id)}
-                  className="text-red-500 text-sm"
-                >
-                  删除
-                </button>
+      {factories.length === 0 ? (
+        <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl">
+          暂无工厂{canManage ? '，点击添加' : ''}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {factories.map(factory => (
+            <div key={factory.id} className="bg-white rounded-xl shadow-sm border p-4">
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-semibold text-lg">{factory.name}</h3>
+                {canManage && (
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handleEdit(factory)}
+                      className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="编辑"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmId(factory.id)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="删除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1 text-sm text-gray-600">
+                <p>联系人：{factory.contact_name || '-'}</p>
+                <p>电话：{factory.contact_phone || '-'}</p>
+                <p>地址：{factory.address || '-'}</p>
               </div>
             </div>
-            <div className="space-y-1 text-sm text-gray-600">
-              <p>联系人：{factory.contact_name}</p>
-              <p>电话：{factory.contact_phone}</p>
-              <p>地址：{factory.address}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {factories.length === 0 && !showForm && (
-        <div className="text-center py-12 text-gray-500">暂无工厂，点击添加</div>
+          ))}
+        </div>
       )}
+
+      {/* Add/Edit Modal */}
+      <Dialog open={showModal} onOpenChange={(open) => !open && handleCloseModal()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingFactory ? '编辑工厂' : '添加工厂'}</DialogTitle>
+            <DialogDescription>
+              {editingFactory ? '修改工厂信息' : '添加新的合作工厂'}
+            </DialogDescription>
+          </DialogHeader>
+          <FactoryForm
+            factory={editingFactory}
+            onSuccess={handleSuccess}
+            onCancel={handleCloseModal}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+            <DialogDescription>
+              确定要删除这个工厂吗？此操作无法撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmId(null)}
+              disabled={isSubmitting}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? '删除中...' : '删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
