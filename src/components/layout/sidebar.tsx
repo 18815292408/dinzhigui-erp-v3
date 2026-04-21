@@ -10,8 +10,7 @@ import {
   Wrench,
   Settings,
   Home,
-  Shield,
-  BarChart3
+  Shield
 } from 'lucide-react'
 
 const navigation = [
@@ -20,7 +19,6 @@ const navigation = [
   { name: '方案管理', href: '/designs', icon: FileText, roles: ['owner', 'manager', 'designer', 'sales', 'installer'] },
   { name: '安装管理', href: '/installations', icon: Wrench, roles: ['owner', 'manager', 'designer', 'sales', 'installer'] },
   { name: '已完成订单', href: '/completed-orders', icon: Wrench, roles: ['owner', 'manager', 'designer', 'sales', 'installer'] },
-  { name: '月度统计', href: '/statistics/monthly', icon: BarChart3, roles: ['owner'] },
   { name: '账号管理', href: '/settings/users', icon: Settings, roles: ['owner', 'manager'] },
   { name: '管理员面板', href: '/settings/admin', icon: Shield, roles: ['owner'] },
 ]
