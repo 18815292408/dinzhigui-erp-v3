@@ -26,14 +26,32 @@ async function getDesign(id: string) {
   if (!user) return null
 
   const adminSupabase = await createAdminClient()
-  const { data } = await adminSupabase
+
+  // 先获取设计方案
+  const { data: design } = await adminSupabase
     .from('designs')
     .select('*, customers(id, name, phone, house_type)')
     .eq('id', id)
     .eq('organization_id', user.organization_id)
     .single()
 
-  return data
+  if (!design) return null
+
+  // 如果有客户，查询该客户的订单签单金额
+  let signedAmount = null
+  if (design.customers?.name) {
+    const { data: order } = await adminSupabase
+      .from('orders')
+      .select('signed_amount')
+      .eq('customer_name', design.customers.name)
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    signedAmount = order?.signed_amount || null
+  }
+
+  return { ...design, signed_amount: signedAmount }
 }
 
 // Server Action to submit design (draft → submitted)
@@ -195,7 +213,7 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
             </div>
             <div className="p-4 border rounded-lg">
               <p className="text-sm text-muted-foreground">成交价</p>
-              <p className="font-medium">{design.final_price ? `¥${design.final_price.toLocaleString()}` : '待定'}</p>
+              <p className="font-medium">{design.signed_amount ? `¥${design.signed_amount}万` : '未填写'}</p>
             </div>
           </div>
 
