@@ -1,42 +1,46 @@
 import { cookies } from 'next/headers'
-import { CustomerList } from '@/components/customers/customer-list'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
+import { CustomersPageClient } from './customers-page-client'
 
 async function getCustomers() {
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')
 
   if (!sessionCookie) {
-    return []
+    return { withoutOrders: [], withOrders: [] }
   }
 
   const user = parseSessionUser(sessionCookie.value)
   if (!user) {
-    return []
+    return { withoutOrders: [], withOrders: [] }
   }
 
   const adminSupabase = await createAdminClient()
 
-  // 获取所有客户和有进行中设计方案的客户ID（有设计方案后客户就不在客户列表显示）
-  const [allCustomers, activeDesigns] = await Promise.all([
+  // 获取无订单客户（订单创建）
+  const [customersWithoutOrders, customersWithOrders] = await Promise.all([
+    // 订单创建：客户没有进行中订单
     adminSupabase
       .from('customers')
       .select('*')
       .eq('organization_id', user.organization_id)
+      .eq('has_active_order', false)
       .order('created_at', { ascending: false }),
+    // 订单跟进：客户有进行中订单
     adminSupabase
-      .from('designs')
-      .select('customer_id')
-      .in('status', ['draft', 'submitted', 'confirmed']),
+      .from('customers')
+      .select('*, orders(id, order_no, signed_amount, status, order_stage)')
+      .eq('organization_id', user.organization_id)
+      .eq('has_active_order', true)
+      .order('created_at', { ascending: false }),
   ])
-
-  const activeCustomerIds = new Set(activeDesigns.data?.map(d => d.customer_id).filter(Boolean) || [])
-
-  // 过滤掉有进行中设计方案的客户
-  return (allCustomers.data || []).filter(c => !activeCustomerIds.has(c.id))
+  return {
+    withoutOrders: customersWithoutOrders.data || [],
+    withOrders: customersWithOrders.data || []
+  }
 }
 
 export default async function CustomersPage() {
@@ -54,7 +58,7 @@ export default async function CustomersPage() {
         </Link>
       </div>
 
-      <CustomerList customers={customers} />
+      <CustomersPageClient customers={customers} />
     </div>
   )
 }
