@@ -35,7 +35,7 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-apple-gray-50">
       <Sidebar userRole={user.role} />
       <div className="pl-[280px]">
-        <Header userName={user.name} />
+        <Header userName={user.name} userRole={user.role} />
         <main className="p-6">{children}</main>
       </div>
     </div>

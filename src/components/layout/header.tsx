@@ -1,9 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LogOut, User, Bell } from 'lucide-react'
+import { LogOut, User } from 'lucide-react'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 
-export function Header({ userName }: { userName: string }) {
+export function Header({ userName, userRole }: { userName: string; userRole: string }) {
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -24,11 +25,8 @@ export function Header({ userName }: { userName: string }) {
 
       {/* Right side - User actions */}
       <div className="flex items-center gap-2">
-        {/* Notification bell */}
-        <button className="w-10 h-10 rounded-full hover:bg-apple-gray-100 active:bg-apple-gray-200 flex items-center justify-center transition-all duration-200 relative">
-          <Bell className="w-5 h-5 text-apple-gray-700" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-apple-red rounded-full" />
-        </button>
+        {/* Notification bell with real functionality */}
+        <NotificationBell userRole={userRole} />
 
         {/* User avatar */}
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-apple-blue to-apple-purple flex items-center justify-center">

@@ -63,11 +63,17 @@ export default function OrderDetailPage() {
   const [editingAmount, setEditingAmount] = useState(false)
   const [signedAmountInput, setSignedAmountInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
     fetchOrder()
     fetchUsers()
+    // 获取当前用户信息
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => setCurrentUser(data.user))
+      .catch(console.error)
   }, [])
 
   const fetchOrder = async () => {
@@ -294,6 +300,7 @@ export default function OrderDetailPage() {
 
   const designers = users.filter(u => u.role === 'designer')
   const installers = users.filter(u => u.role === 'installer')
+  const canPerformActions = currentUser && !['owner', 'manager'].includes(currentUser.role)
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -365,7 +372,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {order.status === 'pending_dispatch' && (
+      {order.status === 'pending_dispatch' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">派单给设计师</h2>
           <div className="flex flex-wrap gap-2">
@@ -383,7 +390,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {order.status === 'pending_design' && (
+      {order.status === 'pending_design' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">接单（选择出图时间）</h2>
           <div className="flex gap-2">
@@ -401,7 +408,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {order.status === 'designing' && (
+      {order.status === 'designing' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">设计中</h2>
           <p className="text-gray-500 mb-4">预计出图日期：{order.design_due_date}</p>
@@ -415,7 +422,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {order.status === 'pending_order' && (
+      {order.status === 'pending_order' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">下单至工厂</h2>
           <FactorySelector
@@ -425,7 +432,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {order.status === 'pending_payment' && (
+      {order.status === 'pending_payment' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">待打款</h2>
           <button
@@ -438,7 +445,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {order.status === 'pending_shipment' && (
+      {order.status === 'pending_shipment' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">填写出货时间</h2>
           <div className="space-y-4">
@@ -469,7 +476,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {order.status === 'in_install' && (
+      {order.status === 'in_install' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">安装进度</h2>
           <p className="text-gray-500 mb-4">当前状态：{INSTALLATION_STATUS_LABELS[order.installation_status]}</p>
