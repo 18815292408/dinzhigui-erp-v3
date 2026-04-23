@@ -1,21 +1,24 @@
-import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 export async function GET(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('role, organization_id')
-    .eq('id', user.id)
-    .single()
+  const adminSupabase = await createAdminClient()
 
-  let query = supabase
+  let query = adminSupabase
     .from('orders')
     .select(`
       *,
@@ -23,14 +26,14 @@ export async function GET(request: Request) {
       assigned_designer_user:users!assigned_designer(name),
       assigned_installer_user:users!assigned_installer(name)
     `)
-    .eq('organization_id', userData?.organization_id)
+    .eq('organization_id', user.organization_id)
 
   // Role-based filtering
-  if (userData?.role === 'designer') {
+  if (user.role === 'designer') {
     query = query.eq('assigned_designer', user.id)
-  } else if (userData?.role === 'sales') {
+  } else if (user.role === 'sales') {
     query = query.eq('created_by', user.id)
-  } else if (userData?.role === 'installer') {
+  } else if (user.role === 'installer') {
     query = query.eq('assigned_installer', user.id)
   }
 
@@ -44,33 +47,30 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('role, organization_id')
-    .eq('id', user.id)
-    .single()
-
-  if (userData?.role !== 'sales' && !['owner', 'manager'].includes(userData?.role)) {
-    return NextResponse.json({ error: 'Only sales can create orders' }, { status: 403 })
-  }
+  const adminSupabase = await createAdminClient()
 
   const body = await request.json()
   const {
     customer_name, customer_phone, customer_address,
-    house_type, house_area
+    house_type, house_area, signed_amount
   } = body
 
   // Generate order number: DD-YYYYMMDD-NNN
   const today = new Date()
   const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
-  const { data: lastOrder } = await supabase
+  const { data: lastOrder } = await adminSupabase
     .from('orders')
     .select('order_no')
     .like('order_no', `DD-${dateStr}-%`)
@@ -84,16 +84,17 @@ export async function POST(request: Request) {
   }
   const orderNo = `DD-${dateStr}-${String(seq).padStart(3, '0')}`
 
-  const { data, error } = await supabase
+  const { data, error } = await adminSupabase
     .from('orders')
     .insert({
-      organization_id: userData?.organization_id,
+      organization_id: user.organization_id,
       order_no: orderNo,
       customer_name,
       customer_phone,
       customer_address,
       house_type,
       house_area,
+      signed_amount: signed_amount || null,
       created_by: user.id,
       status: 'pending_dispatch'
     })
@@ -101,7 +102,8 @@ export async function POST(request: Request) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Create order error:', error)
+    return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 })
   }
 
   return NextResponse.json(data, { status: 201 })
