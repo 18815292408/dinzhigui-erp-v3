@@ -4,6 +4,21 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
+interface OrderSummary {
+  id: string
+  order_no: string
+  status: string
+  signed_amount: number | null
+}
+
+interface CustomerWithOrders {
+  id: string
+  name: string
+  phone: string | null
+  house_type: string | null
+  orders?: OrderSummary[]
+}
+
 const STAGE_LABELS: Record<string, string> = {
   pending_dispatch: '待派单',
   pending_design: '待接单',
@@ -26,7 +41,7 @@ const STAGE_COLORS: Record<string, string> = {
   completed: 'bg-gray-100 text-gray-500'
 }
 
-export function OrderFollowupList({ customers }: { customers: any[] }) {
+export function OrderFollowupList({ customers }: { customers: CustomerWithOrders[] }) {
   if (customers.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
