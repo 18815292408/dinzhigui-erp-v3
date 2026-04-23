@@ -91,27 +91,35 @@ export function OrderAmountEditor({ orderId, signedAmount, finalOrderAmount }: O
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm">
         <div>
           <span className="text-muted-foreground">签单金额：</span>
           <span className={signedAmount ? 'text-green-600 font-medium' : 'text-gray-400'}>
             {signedAmount ? `¥${signedAmount}万` : '未填写'}
           </span>
         </div>
+        <button
+          onClick={() => setEditing(true)}
+          className="text-blue-500 text-sm hover:underline"
+        >
+          修改
+        </button>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
         <div>
           <span className="text-muted-foreground">最终下单销售额：</span>
           <span className={finalOrderAmount ? 'text-green-600 font-medium' : 'text-gray-400'}>
             {finalOrderAmount ? `¥${finalOrderAmount}万` : '未填写'}
           </span>
         </div>
+        <button
+          onClick={() => setEditing(true)}
+          className="text-blue-500 text-sm hover:underline"
+        >
+          修改
+        </button>
       </div>
-      <button
-        onClick={() => setEditing(true)}
-        className="text-blue-500 text-sm hover:underline ml-4"
-      >
-        修改
-      </button>
     </div>
   )
 }
