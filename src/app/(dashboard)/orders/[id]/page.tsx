@@ -60,6 +60,9 @@ export default function OrderDetailPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [editingAmount, setEditingAmount] = useState(false)
+  const [signedAmountInput, setSignedAmountInput] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -68,120 +71,222 @@ export default function OrderDetailPage() {
   }, [])
 
   const fetchOrder = async () => {
-    const { data } = await supabase
-      .from('orders')
-      .select('*, created_by_user:users!created_by(name), assigned_designer_user:users!assigned_designer(name), assigned_installer_user:users!assigned_installer(name)')
-      .eq('id', params.id)
-      .single()
-    setOrder(data)
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/orders/${params.id}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setOrder(data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch order:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('users').select('id, name, role')
-    setUsers(data || [])
+    const { data } = await supabase.from('users').select('id, display_name, name, role')
+    const usersList = (data || []).map((u: any) => ({
+      ...u,
+      name: u.display_name || u.name
+    }))
+    setUsers(usersList)
+  }
+
+  const handleUpdateSignedAmount = async () => {
+    setActionLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ signed_amount: parseFloat(signedAmountInput) })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '更新失败')
+      }
+      setEditingAmount(false)
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handleDispatch = async (designerId: string) => {
     setActionLoading(true)
-    await supabase.from('orders').update({ assigned_designer: designerId, status: 'pending_design' }).eq('id', params.id)
-    await supabase.from('notifications').insert({
-      user_id: designerId,
-      type: 'new_order',
-      priority: 'urgent',
-      title: '新订单派发',
-      summary: `客户 ${order?.customer_name} 的订单已派给您`,
-      related_order_id: params.id
-    })
-    setActionLoading(false)
-    fetchOrder()
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ designer_id: designerId })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '派单失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handleAccept = async (designDays: number) => {
     setActionLoading(true)
-    const dueDate = new Date()
-    dueDate.setDate(dueDate.getDate() + designDays)
-    await supabase.from('orders').update({
-      status: 'designing',
-      design_due_days: designDays,
-      design_due_date: dueDate.toISOString().slice(0, 10)
-    }).eq('id', params.id)
-    setActionLoading(false)
-    fetchOrder()
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ design_due_days: designDays })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '接单失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handleSubmitDesign = async () => {
     setActionLoading(true)
-    await supabase.from('orders').update({ status: 'pending_order' }).eq('id', params.id)
-    setActionLoading(false)
-    fetchOrder()
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/submit-design`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '提交方案失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handlePlaceOrder = async (factoryRecords: any[]) => {
     setActionLoading(true)
-    await supabase.from('orders').update({
-      status: 'pending_payment',
-      factory_records: factoryRecords
-    }).eq('id', params.id)
-    setActionLoading(false)
-    fetchOrder()
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/place-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ factory_records: factoryRecords })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '下单失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handleConfirmPayment = async () => {
     setActionLoading(true)
-    await supabase.from('orders').update({
-      status: 'pending_shipment',
-      payment_status: 'paid'
-    }).eq('id', params.id)
-    setActionLoading(false)
-    fetchOrder()
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/confirm-payment`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '确认打款失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handleSetShipment = async (date: string, installerId: string) => {
     setActionLoading(true)
-    await supabase.from('orders').update({
-      status: 'in_install',
-      estimated_shipment_date: date,
-      assigned_installer: installerId,
-      installation_status: 'pending_ship'
-    }).eq('id', params.id)
-    await supabase.from('notifications').insert({
-      user_id: installerId,
-      type: 'new_install',
-      priority: 'urgent',
-      title: '新订单待安装',
-      summary: `订单 ${order?.order_no} 已分配给您`,
-      related_order_id: params.id
-    })
-    setActionLoading(false)
-    fetchOrder()
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/set-shipment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          estimated_shipment_date: date,
+          installer_id: installerId
+        })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '设置出货失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handleUpdateInstall = async (status: string) => {
     setActionLoading(true)
-    await supabase.from('orders').update({ installation_status: status }).eq('id', params.id)
-    if (status === 'supplement_pending') {
-      await supabase.from('notifications').insert({
-        user_id: order?.assigned_designer_user?.id,
-        type: 'supplement_request',
-        priority: 'urgent',
-        title: '补件申请',
-        summary: `订单 ${order?.order_no} 有补件需要处理`,
-        related_order_id: params.id
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/update-install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ installation_status: status })
       })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '更新安装进度失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
     }
-    setActionLoading(false)
-    fetchOrder()
   }
 
   const handleComplete = async () => {
     setActionLoading(true)
-    await supabase.from('orders').update({
-      status: 'completed',
-      installation_status: 'installed'
-    }).eq('id', params.id)
-    setActionLoading(false)
-    fetchOrder()
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/complete`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '完成订单失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   if (loading) return <div className="p-6">加载中...</div>
@@ -198,6 +303,12 @@ export default function OrderDetailPage() {
         <span className="px-3 py-1 bg-gray-100 rounded-full text-sm">{STATUS_LABELS[order.status]}</span>
       </div>
 
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg">
+          {error}
+        </div>
+      )}
+
       <OrderStatusFlow currentStatus={order.status} />
 
       <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
@@ -208,6 +319,49 @@ export default function OrderDetailPage() {
           <div><span className="text-gray-500">地址：</span>{order.customer_address}</div>
           <div><span className="text-gray-500">户型：</span>{order.house_type}</div>
           <div><span className="text-gray-500">面积：</span>{order.house_area}㎡</div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">签单金额：</span>
+            {editingAmount ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={signedAmountInput}
+                  onChange={(e) => setSignedAmountInput(e.target.value)}
+                  className="w-24 px-2 py-1 border rounded"
+                  placeholder="万元"
+                />
+                <span className="text-gray-500">万</span>
+                <button
+                  onClick={handleUpdateSignedAmount}
+                  disabled={actionLoading}
+                  className="px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:opacity-50"
+                >
+                  保存
+                </button>
+                <button
+                  onClick={() => setEditingAmount(false)}
+                  className="px-2 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className={order.signed_amount ? 'text-green-600 font-medium' : 'text-gray-400'}>
+                  {order.signed_amount ? `¥${order.signed_amount}万` : '未填写'}
+                </span>
+                <button
+                  onClick={() => {
+                    setSignedAmountInput(order.signed_amount?.toString() || '')
+                    setEditingAmount(true)
+                  }}
+                  className="text-blue-500 text-sm hover:underline"
+                >
+                  修改
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
