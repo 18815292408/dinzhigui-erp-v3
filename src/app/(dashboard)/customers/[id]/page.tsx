@@ -113,8 +113,10 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               </div>
               <div>
                 <span className="text-muted-foreground">订单阶段：</span>
+                {customer.orders[0].status === 'pending_dispatch' && '待派单'}
                 {customer.orders[0].status === 'pending_design' && '等待设计师接单'}
                 {customer.orders[0].status === 'designing' && '设计中'}
+                {customer.orders[0].status === 'in_design' && '设计中'}
                 {customer.orders[0].status === 'pending_order' && '等待下单'}
                 {customer.orders[0].status === 'pending_payment' && '等待打款'}
                 {customer.orders[0].status === 'pending_shipment' && '等待出货'}
