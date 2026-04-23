@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -27,9 +28,14 @@ export function TransferDesignButton({ customerId, customerName, organizationId 
   const [designers, setDesigners] = useState<Designer[]>([])
   const [selectedDesigner, setSelectedDesigner] = useState<string | null>(null)
   const [signedAmount, setSignedAmount] = useState<string>('')
+  const [designerError, setDesignerError] = useState<string>('')
+  const [amountError, setAmountError] = useState<string>('')
   const router = useRouter()
 
   const handleOpenDesignerDialog = async () => {
+    setDesigners([])
+    setDesignerError('')
+    setAmountError('')
     // Fetch designers via API (bypasses RLS)
     const res = await fetch(`/api/designers?organization_id=${encodeURIComponent(organizationId)}`)
 
@@ -47,14 +53,16 @@ export function TransferDesignButton({ customerId, customerName, organizationId 
 
   const handleTransfer = async () => {
     if (!selectedDesigner) {
-      alert('请选择设计师')
+      setDesignerError('请选择设计师')
       return
     }
+    setDesignerError('')
 
     if (!signedAmount || parseFloat(signedAmount) <= 0) {
-      alert('请填写签单金额')
+      setAmountError('请填写签单金额')
       return
     }
+    setAmountError('')
 
     setLoading(true)
     try {
@@ -110,11 +118,20 @@ export function TransferDesignButton({ customerId, customerName, organizationId 
 
   return (
     <>
-      <Button onClick={handleOpenDesignerDialog}>
+      <Button onClick={handleOpenDesignerDialog} disabled={loading}>
         转交设计
       </Button>
 
-      <Dialog open={showDesignerDialog} onOpenChange={setShowDesignerDialog}>
+      <Dialog open={showDesignerDialog} onOpenChange={(open) => {
+        setShowDesignerDialog(open)
+        if (!open) {
+          setDesigners([])
+          setSelectedDesigner(null)
+          setSignedAmount('')
+          setDesignerError('')
+          setAmountError('')
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>选择设计师</DialogTitle>
@@ -143,15 +160,23 @@ export function TransferDesignButton({ customerId, customerName, organizationId 
                 暂无可用设计师
               </p>
             )}
+            {designerError && (
+              <p className="text-sm text-red-500">{designerError}</p>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-medium">签单金额（万）</label>
-              <input
+              <Input
                 type="number"
                 value={signedAmount}
-                onChange={(e) => setSignedAmount(e.target.value)}
+                onChange={(e) => {
+                  setSignedAmount(e.target.value)
+                  setAmountError('')
+                }}
                 placeholder="请输入签单金额"
-                className="w-full px-3 py-2 border rounded-lg"
               />
+              {amountError && (
+                <p className="text-sm text-red-500">{amountError}</p>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowDesignerDialog(false)}>
