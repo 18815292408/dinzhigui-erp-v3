@@ -5,7 +5,7 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -14,12 +14,20 @@ export async function POST(
 
   const orderId = params.id
 
+  const body = await request.json()
+  const { final_order_amount } = body
+
+  const updates: Record<string, unknown> = {
+    status: 'pending_order',
+    updated_at: new Date().toISOString()
+  }
+  if (final_order_amount) {
+    updates.final_order_amount = parseFloat(final_order_amount)
+  }
+
   const { data: order, error } = await supabase
     .from('orders')
-    .update({
-      status: 'pending_order',
-      updated_at: new Date().toISOString()
-    })
+    .update(updates)
     .eq('id', orderId)
     .eq('assigned_designer', user.id)
     .eq('status', 'designing')
