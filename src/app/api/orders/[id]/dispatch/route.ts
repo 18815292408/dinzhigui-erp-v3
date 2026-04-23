@@ -1,21 +1,29 @@
-import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const adminSupabase = await createAdminClient()
   const { designer_id } = await request.json()
   const orderId = params.id
 
-  const { data: order, error } = await supabase
+  const { data: order, error } = await adminSupabase
     .from('orders')
     .update({
       assigned_designer: designer_id,
@@ -32,7 +40,7 @@ export async function POST(
   }
 
   // Create urgent notification for designer
-  await supabase.from('notifications').insert({
+  await adminSupabase.from('notifications').insert({
     organization_id: order.organization_id,
     user_id: designer_id,
     type: 'new_order',
@@ -41,6 +49,15 @@ export async function POST(
     summary: `客户 ${order.customer_name} 的订单已派给您，请及时接单`,
     related_order_id: orderId
   })
+
+  // 更新客户状态为有进行中订单
+  await adminSupabase
+    .from('customers')
+    .update({
+      has_active_order: true,
+      order_stage: 'pending_design'
+    })
+    .eq('id', order.customer_id)
 
   return NextResponse.json(order)
 }
