@@ -30,7 +30,7 @@ async function getCustomers() {
   // 获取所有订单
   const { data: allOrders } = await adminSupabase
     .from('orders')
-    .select('customer_name, status')
+    .select('customer_name, status, order_no, signed_amount')
     .eq('organization_id', user.organization_id)
 
   // 获取所有设计
