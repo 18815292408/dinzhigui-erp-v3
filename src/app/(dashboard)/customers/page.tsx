@@ -20,26 +20,55 @@ async function getCustomers() {
 
   const adminSupabase = await createAdminClient()
 
-  // 获取无订单客户（订单创建）
-  const [customersWithoutOrders, customersWithOrders] = await Promise.all([
-    // 订单创建：客户没有进行中订单
-    adminSupabase
-      .from('customers')
-      .select('*')
-      .eq('organization_id', user.organization_id)
-      .eq('has_active_order', false)
-      .order('created_at', { ascending: false }),
-    // 订单跟进：客户有进行中订单
-    adminSupabase
-      .from('customers')
-      .select('*, orders(id, order_no, signed_amount, status, order_stage)')
-      .eq('organization_id', user.organization_id)
-      .eq('has_active_order', true)
-      .order('created_at', { ascending: false }),
-  ])
+  // 获取所有客户
+  const { data: allCustomers } = await adminSupabase
+    .from('customers')
+    .select('*')
+    .eq('organization_id', user.organization_id)
+    .order('created_at', { ascending: false })
+
+  // 获取所有订单（用于计算客户状态）
+  const { data: allOrders } = await adminSupabase
+    .from('orders')
+    .select('customer_name, status, order_no, signed_amount')
+    .eq('organization_id', user.organization_id)
+
+  // 计算有订单的客户名称集合（用于确定"订单创建"）
+  const customerNamesWithOrders = new Set(
+    (allOrders || [])
+      .map(o => o.customer_name)
+      .filter(Boolean)
+  )
+
+  // 计算有进行中订单的客户名称集合（非 completed 状态，用于确定"订单跟进"）
+  const customerNamesWithActiveOrders = new Set(
+    (allOrders || [])
+      .filter(o => o.status !== 'completed')
+      .map(o => o.customer_name)
+      .filter(Boolean)
+  )
+
+  // 订单创建：从未有过订单的客户
+  const customersWithoutOrders = (allCustomers || []).filter(
+    c => !customerNamesWithOrders.has(c.name)
+  )
+
+  // 订单跟进：有进行中订单的客户
+  const customersWithOrdersData = (allCustomers || []).filter(
+    c => customerNamesWithActiveOrders.has(c.name)
+  )
+
+  // 为订单跟进客户附加订单信息
+  const customersWithOrders = customersWithOrdersData.map(c => {
+    const orders = (allOrders || []).filter(
+      o => o.customer_name === c.name && o.status !== 'completed'
+    )
+    return { ...c, orders }
+  })
+
   return {
-    withoutOrders: customersWithoutOrders.data || [],
-    withOrders: customersWithOrders.data || []
+    withoutOrders: customersWithoutOrders,
+    withOrders: customersWithOrders
   }
 }
 
