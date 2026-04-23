@@ -23,7 +23,7 @@ async function getCustomer(id: string, organizationId: string) {
       .from('orders')
       .select('*')
       .eq('customer_name', data.name)
-      .eq('status', '!=', 'completed')
+      .neq('status', 'completed')
       .order('created_at', { ascending: false })
     return { ...data, orders: orders || [] }
   }
