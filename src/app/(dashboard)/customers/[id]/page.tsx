@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { FollowUpForm } from '@/components/customers/follow-up-form'
+import { OrderAmountEditor } from '@/components/customers/order-amount-editor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TransferDesignButton } from '@/components/customers/transfer-design-button'
 import { BackButton } from '@/components/ui/back-button'
@@ -16,12 +17,13 @@ async function getCustomer(id: string, organizationId: string) {
     .eq('organization_id', organizationId)
     .single()
 
-  if (data && data.has_active_order) {
+  if (data) {
+    // 用 customer_name 关联，因为 orders 表用 customer_name 不是 customer_id
     const { data: orders } = await adminSupabase
       .from('orders')
       .select('*')
-      .eq('customer_id', id)
-      .eq('has_active_order', true)
+      .eq('customer_name', data.name)
+      .eq('status', '!=', 'completed')
       .order('created_at', { ascending: false })
     return { ...data, orders: orders || [] }
   }
@@ -98,7 +100,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
       </Card>
 
       {/* 订单信息 */}
-      {customer.has_active_order && customer.orders && customer.orders.length > 0 && (
+      {customer.orders && customer.orders.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>订单信息</CardTitle>
@@ -107,7 +109,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">订单编号：</span>
-                {customer.orders[0].order_number || customer.orders[0].id}
+                {customer.orders[0].order_no || customer.orders[0].id}
               </div>
               <div>
                 <span className="text-muted-foreground">订单阶段：</span>
@@ -119,13 +121,12 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
                 {customer.orders[0].status === 'in_install' && '安装中'}
                 {customer.orders[0].status === 'completed' && '已完成'}
               </div>
-              <div>
-                <span className="text-muted-foreground">签单金额：</span>
-                {customer.orders[0].signed_amount ? `¥${customer.orders[0].signed_amount.toLocaleString()}` : '未填写'}
-              </div>
-              <div>
-                <span className="text-muted-foreground">最终下单销售额：</span>
-                {customer.orders[0].final_order_amount ? `¥${customer.orders[0].final_order_amount.toLocaleString()}` : '未填写'}
+              <div className="col-span-2">
+                <OrderAmountEditor
+                  orderId={customer.orders[0].id}
+                  signedAmount={customer.orders[0].signed_amount}
+                  finalOrderAmount={customer.orders[0].final_order_amount}
+                />
               </div>
             </div>
           </CardContent>
