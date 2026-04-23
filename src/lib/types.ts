@@ -32,6 +32,8 @@ export interface Customer {
   estimated_price: number | null
   ai_analyzed_at: string | null
   follow_ups: string
+  order_stage: string | null
+  has_active_order: boolean
   created_at: string
   updated_at: string
 }
@@ -63,6 +65,35 @@ export interface Installation {
   completed_at: string | null
   feedback: string | null
   issues: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Order {
+  id: string
+  organization_id: string
+  order_no: string
+  customer_name: string
+  customer_phone: string | null
+  customer_address: string | null
+  house_type: string | null
+  house_area: number | null
+  created_by: string | null
+  assigned_designer: string | null
+  assigned_installer: string | null
+  status: 'pending_dispatch' | 'pending_design' | 'designing' | 'pending_order' | 'pending_payment' | 'pending_shipment' | 'in_install' | 'completed'
+  design_due_days: number | null
+  design_due_date: string | null
+  signed_amount: number | null
+  final_order_amount: number | null
+  factory_records: any[]
+  payment_status: 'unpaid' | 'paid'
+  payment_confirmed_at: string | null
+  estimated_shipment_date: string | null
+  installation_status: 'pending_ship' | 'shipped' | 'arrived' | 'delivering' | 'installing' | 'supplement_pending' | 'installed'
+  completed_at: string | null
+  archived_at: string | null
+  remarks: any[]
   created_at: string
   updated_at: string
 }
