@@ -1,11 +1,11 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -46,6 +46,16 @@ export async function POST(
       related_order_id: orderId
     })
   }
+
+  // 将客户的 has_active_order 设为 false
+  const adminSupabase = await createAdminClient()
+  await adminSupabase
+    .from('customers')
+    .update({
+      has_active_order: false,
+      order_stage: 'completed'
+    })
+    .eq('id', order.customer_id)
 
   return NextResponse.json({ ...order, archive_month: archiveMonth })
 }
