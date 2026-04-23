@@ -27,20 +27,19 @@ async function getCustomers() {
     .eq('organization_id', user.organization_id)
     .order('created_at', { ascending: false })
 
-  // 获取所有订单（用于计算客户状态）
+  // 获取所有订单
   const { data: allOrders } = await adminSupabase
     .from('orders')
-    .select('customer_name, status, order_no, signed_amount')
+    .select('customer_name, status')
     .eq('organization_id', user.organization_id)
 
-  // 计算有订单的客户名称集合（用于确定"订单创建"）
-  const customerNamesWithOrders = new Set(
-    (allOrders || [])
-      .map(o => o.customer_name)
-      .filter(Boolean)
-  )
+  // 获取所有设计
+  const { data: allDesigns } = await adminSupabase
+    .from('designs')
+    .select('customer_id, status')
+    .eq('organization_id', user.organization_id)
 
-  // 计算有进行中订单的客户名称集合（非 completed 状态，用于确定"订单跟进"）
+  // 计算有进行中订单的客户名称集合（status !== 'completed'）
   const customerNamesWithActiveOrders = new Set(
     (allOrders || [])
       .filter(o => o.status !== 'completed')
@@ -48,23 +47,46 @@ async function getCustomers() {
       .filter(Boolean)
   )
 
-  // 订单创建：从未有过订单的客户
-  const customersWithoutOrders = (allCustomers || []).filter(
-    c => !customerNamesWithOrders.has(c.name)
+  // 计算有进行中设计的客户ID集合（draft, submitted）
+  const customerIdsWithActiveDesigns = new Set(
+    (allDesigns || [])
+      .filter(d => ['draft', 'submitted'].includes(d.status))
+      .map(d => d.customer_id)
+      .filter(Boolean)
   )
 
-  // 订单跟进：有进行中订单的客户
-  const customersWithOrdersData = (allCustomers || []).filter(
-    c => customerNamesWithActiveOrders.has(c.name)
+  // 计算有过任何订单的客户名称集合
+  const customerNamesWithAnyOrder = new Set(
+    (allOrders || [])
+      .map(o => o.customer_name)
+      .filter(Boolean)
   )
 
-  // 为订单跟进客户附加订单信息
-  const customersWithOrders = customersWithOrdersData.map(c => {
-    const orders = (allOrders || []).filter(
-      o => o.customer_name === c.name && o.status !== 'completed'
-    )
-    return { ...c, orders }
-  })
+  // 分类客户
+  const customersWithOrders: any[] = []  // 订单跟进
+  const customersWithoutOrders: any[] = []  // 订单创建
+
+  for (const c of allCustomers || []) {
+    const hasAnyRecord = customerNamesWithAnyOrder.has(c.name) ||
+                         customerIdsWithActiveDesigns.has(c.id)
+    const isInFollowup = customerNamesWithActiveOrders.has(c.name) ||
+                         customerIdsWithActiveDesigns.has(c.id)
+
+    if (!hasAnyRecord) {
+      // 从未有过任何记录 → 订单创建
+      customersWithoutOrders.push(c)
+    } else if (isInFollowup) {
+      // 有进行中的订单或设计 → 订单跟进
+      const orders = (allOrders || []).filter(
+        o => o.customer_name === c.name && o.status !== 'completed'
+      )
+      const designs = (allDesigns || []).filter(
+        d => d.customer_id === c.id && ['draft', 'submitted'].includes(d.status)
+      )
+      customersWithOrders.push({ ...c, orders, designs })
+    }
+    // else: 有过记录但全部完成 → 不返回（消失）
+  }
 
   return {
     withoutOrders: customersWithoutOrders,
