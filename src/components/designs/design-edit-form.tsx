@@ -17,6 +17,7 @@ interface Design {
   cad_file: string | null
   cad_file_url: string | null
   kujiale_link: string | null
+  signed_amount?: number | null
 }
 
 interface Props {
@@ -35,6 +36,9 @@ export function DesignEditForm({ design, onSaved }: Props) {
     cad_file: design.cad_file || '',
     cad_file_url: design.cad_file_url || '',
   })
+
+  // 如果有订单签单金额，显示只读值而不是输入框
+  const hasSignedAmount = design.signed_amount != null
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -161,11 +165,18 @@ export function DesignEditForm({ design, onSaved }: Props) {
 
       <div className="space-y-2">
         <label className="text-sm font-medium">成交价（元）</label>
-        <Input
-          type="number"
-          value={form.final_price}
-          onChange={(e) => setForm({ ...form, final_price: e.target.value })}
-        />
+        {hasSignedAmount ? (
+          <div className="p-3 bg-gray-50 rounded-md">
+            <p className="text-green-600 font-medium">¥{design.signed_amount}万（来自订单签单金额）</p>
+          </div>
+        ) : (
+          <Input
+            type="number"
+            value={form.final_price}
+            onChange={(e) => setForm({ ...form, final_price: e.target.value })}
+            placeholder="请在客户管理填写签单金额"
+          />
+        )}
       </div>
 
       <div className="space-y-2">
