@@ -16,7 +16,17 @@ async function getCustomer(id: string, organizationId: string) {
     .eq('organization_id', organizationId)
     .single()
 
-  return data
+  if (data && data.has_active_order) {
+    const { data: orders } = await adminSupabase
+      .from('orders')
+      .select('*')
+      .eq('customer_id', id)
+      .eq('has_active_order', true)
+      .order('created_at', { ascending: false })
+    return { ...data, orders: orders || [] }
+  }
+
+  return { ...data, orders: [] }
 }
 
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
@@ -86,6 +96,41 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           </div>
         </CardContent>
       </Card>
+
+      {/* 订单信息 */}
+      {customer.has_active_order && customer.orders && customer.orders.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>订单信息</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">订单编号：</span>
+                {customer.orders[0].order_number || customer.orders[0].id}
+              </div>
+              <div>
+                <span className="text-muted-foreground">订单阶段：</span>
+                {customer.orders[0].status === 'pending_design' && '等待设计师接单'}
+                {customer.orders[0].status === 'designing' && '设计中'}
+                {customer.orders[0].status === 'pending_order' && '等待下单'}
+                {customer.orders[0].status === 'pending_payment' && '等待打款'}
+                {customer.orders[0].status === 'pending_shipment' && '等待出货'}
+                {customer.orders[0].status === 'in_install' && '安装中'}
+                {customer.orders[0].status === 'completed' && '已完成'}
+              </div>
+              <div>
+                <span className="text-muted-foreground">签单金额：</span>
+                {customer.orders[0].signed_amount ? `¥${customer.orders[0].signed_amount.toLocaleString()}` : '未填写'}
+              </div>
+              <div>
+                <span className="text-muted-foreground">最终下单销售额：</span>
+                {customer.orders[0].final_order_amount ? `¥${customer.orders[0].final_order_amount.toLocaleString()}` : '未填写'}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 跟进记录 */}
       <Card>
