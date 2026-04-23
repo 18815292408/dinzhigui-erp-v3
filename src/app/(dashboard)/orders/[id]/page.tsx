@@ -144,28 +144,6 @@ export default function OrderDetailPage() {
     }
   }
 
-  const handleAccept = async (designDays: number) => {
-    setActionLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/orders/${params.id}/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ design_due_days: designDays })
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || '接单失败')
-      }
-      fetchOrder()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
   const handleSubmitDesign = async () => {
     setActionLoading(true)
     setError(null)
@@ -384,24 +362,6 @@ export default function OrderDetailPage() {
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
               >
                 {d.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {order.status === 'pending_design' && canPerformActions && (
-        <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
-          <h2 className="text-lg font-semibold mb-4">接单（选择出图时间）</h2>
-          <div className="flex gap-2">
-            {[7, 10, 12, 15].map(days => (
-              <button
-                key={days}
-                onClick={() => handleAccept(days)}
-                disabled={actionLoading}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-              >
-                {days}天
               </button>
             ))}
           </div>
