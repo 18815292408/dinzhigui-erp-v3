@@ -29,6 +29,11 @@ async function getDesigns() {
 }
 
 export default async function DesignsPage() {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
+  const user = sessionCookie ? parseSessionUser(sessionCookie.value) : null
+
+  const isDesigner = user?.role === 'designer'
   const designs: any[] = await getDesigns()
 
   return (
@@ -38,9 +43,15 @@ export default async function DesignsPage() {
           <h1 className="text-2xl font-semibold">方案管理</h1>
           <p className="text-muted-foreground">创建和管理设计方案</p>
         </div>
-        <Link href="/designs/new">
-          <Button>+ 新建方案</Button>
-        </Link>
+        {isDesigner ? (
+          <Link href="/designs/assigned">
+            <Button>+ 选择订单</Button>
+          </Link>
+        ) : (
+          <Link href="/designs/new">
+            <Button>+ 新建方案</Button>
+          </Link>
+        )}
       </div>
 
       <Suspense fallback={null}>
