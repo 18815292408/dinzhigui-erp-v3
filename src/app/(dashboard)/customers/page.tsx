@@ -47,10 +47,10 @@ async function getCustomers() {
       .filter(Boolean)
   )
 
-  // 计算有进行中设计的客户ID集合（draft, submitted）
+  // 计算有进行中设计的客户ID集合（draft, submitted, confirmed）
   const customerIdsWithActiveDesigns = new Set(
     (allDesigns || [])
-      .filter(d => ['draft', 'submitted'].includes(d.status))
+      .filter(d => ['draft', 'submitted', 'confirmed'].includes(d.status))
       .map(d => d.customer_id)
       .filter(Boolean)
   )
@@ -81,7 +81,7 @@ async function getCustomers() {
         o => o.customer_name === c.name && o.status !== 'completed'
       )
       const designs = (allDesigns || []).filter(
-        d => d.customer_id === c.id && ['draft', 'submitted'].includes(d.status)
+        d => d.customer_id === c.id && ['draft', 'submitted', 'confirmed'].includes(d.status)
       )
       customersWithOrders.push({ ...c, orders, designs })
     }
