@@ -27,7 +27,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '获取方案列表失败' }, { status: 500 })
   }
 
-  return NextResponse.json({ data })
+  // 为每个设计检查是否有安装记录
+  const designIds = data.map((d: any) => d.id)
+  const { data: installations } = await adminSupabase
+    .from('installations')
+    .select('design_id')
+    .in('design_id', designIds)
+
+  const designIdsWithInstallations = new Set(installations?.map((i: any) => i.design_id) || [])
+
+  const designsWithHasInstallation = data.map((design: any) => ({
+    ...design,
+    hasInstallation: designIdsWithInstallations.has(design.id),
+  }))
+
+  return NextResponse.json({ data: designsWithHasInstallation })
 }
 
 export async function POST(request: NextRequest) {
