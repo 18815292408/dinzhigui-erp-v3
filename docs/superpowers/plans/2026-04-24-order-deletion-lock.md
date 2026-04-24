@@ -68,13 +68,14 @@ export async function DELETE(
     return NextResponse.json({ error: '订单不存在' }, { status: 404 })
   }
 
-  // 非店长/老板只能删自己创建的订单
   if (!canBypassAll) {
-    if (user.role === 'sales' && order.created_by !== user.id) {
-      return NextResponse.json({ error: '只能删除自己创建的订单' }, { status: 403 })
-    }
-    // 非销售角色不允许删订单
-    if (user.role !== 'sales') {
+    // 非店长/老板：销售角色只能删自己创建的订单
+    if (user.role === 'sales') {
+      if (order.created_by !== user.id) {
+        return NextResponse.json({ error: '只能删除自己创建的订单' }, { status: 403 })
+      }
+    } else {
+      // 非销售角色不允许删订单
       return NextResponse.json({ error: '无权删除订单' }, { status: 403 })
     }
 
@@ -159,13 +160,14 @@ if (!design) {
   return NextResponse.json({ error: '设计方案不存在' }, { status: 404 })
 }
 
-// 非店长/老板只能删自己创建的设计方案
 if (!canBypassAll) {
-  if (user.role === 'designer' && design.created_by !== user.id) {
-    return NextResponse.json({ error: '只能删除自己创建的设计方案' }, { status: 403 })
-  }
-  // 非设计师角色不允许删设计方案
-  if (user.role !== 'designer') {
+  // 非店长/老板：设计师角色只能删自己创建的设计方案
+  if (user.role === 'designer') {
+    if (design.created_by !== user.id) {
+      return NextResponse.json({ error: '只能删除自己创建的设计方案' }, { status: 403 })
+    }
+  } else {
+    // 非设计师角色不允许删设计方案
     return NextResponse.json({ error: '无权删除设计方案' }, { status: 403 })
   }
 
