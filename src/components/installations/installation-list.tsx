@@ -16,9 +16,11 @@ const statusConfig = {
 export function InstallationList({ installations }: { installations: any[] }) {
   const router = useRouter()
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const handleDeleteInstallation = async (id: string) => {
     if (!confirm('确定要删除该安装记录吗？')) return
+    setDeletingId(id)
     try {
       setDeleteError(null)
       const res = await fetch(`/api/installations/${id}`, {
@@ -33,6 +35,8 @@ export function InstallationList({ installations }: { installations: any[] }) {
       router.refresh()
     } catch (err) {
       setDeleteError('删除失败')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -70,9 +74,10 @@ export function InstallationList({ installations }: { installations: any[] }) {
               </Badge>
               <button
                 onClick={() => handleDeleteInstallation(inst.id)}
-                className="text-sm text-red-600 hover:text-red-700"
+                disabled={deletingId === inst.id}
+                className="text-sm disabled:opacity-50 text-red-600 hover:text-red-700"
               >
-                删除
+                {deletingId === inst.id ? '删除中...' : '删除'}
               </button>
             </div>
           </div>
