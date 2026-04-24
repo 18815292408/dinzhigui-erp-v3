@@ -14,10 +14,11 @@
 
 | 文件 | 改动 |
 |------|------|
-| `src/app/api/orders/[id]/route.ts` | 增加 DELETE 方法，含锁定检查 |
-| `src/app/api/designs/[id]/route.ts` | 已有 DELETE，增加锁定检查 |
+| `src/app/api/orders/[id]/route.ts` | 增加 DELETE 方法，含锁定检查和所有权检查 |
+| `src/app/api/designs/[id]/route.ts` | 已有 DELETE，增加锁定检查和所有权检查 |
+| `src/app/api/installations/[id]/route.ts` | 已有 DELETE，增加所有权检查 |
 | `src/app/(dashboard)/customers/[id]/page.tsx` | 增加删除订单按钮 |
-| `src/components/designs/design-list.tsx` | 增加删除按钮和禁用状态 |
+| `src/components/designs/design-list.tsx` | 增加删除按钮和禁用状态（需预查安装记录） |
 | `src/components/installations/installation-list.tsx` | 增加删除按钮 |
 
 ---
@@ -53,10 +54,30 @@ export async function DELETE(
 
   const adminSupabase = await createAdminClient()
 
-  // 店长/老板不受锁定限制
-  const canBypassLock = ['owner', 'manager'].includes(user.role)
+  // 店长/老板不受限制
+  const canBypassAll = ['owner', 'manager'].includes(user.role)
 
-  if (!canBypassLock) {
+  // 先获取订单，检查所有权
+  const { data: order } = await adminSupabase
+    .from('orders')
+    .select('created_by')
+    .eq('id', params.id)
+    .single()
+
+  if (!order) {
+    return NextResponse.json({ error: '订单不存在' }, { status: 404 })
+  }
+
+  // 非店长/老板只能删自己创建的订单
+  if (!canBypassAll) {
+    if (user.role === 'sales' && order.created_by !== user.id) {
+      return NextResponse.json({ error: '只能删除自己创建的订单' }, { status: 403 })
+    }
+    // 非销售角色不允许删订单
+    if (user.role !== 'sales') {
+      return NextResponse.json({ error: '无权删除订单' }, { status: 403 })
+    }
+
     // 检查是否有设计方案
     const { data: designs } = await adminSupabase
       .from('designs')
@@ -119,15 +140,35 @@ git commit -m "feat: 增加订单删除API及下游锁定检查"
 
 路径: `src/app/api/designs/[id]/route.ts`
 
-- [ ] **Step 2: 找到 DELETE 方法，增加锁定检查**
+- [ ] **Step 2: 找到 DELETE 方法，增加所有权检查和锁定检查**
 
-在删除执行前（`canBypassLock` 检查之后）添加:
+在删除执行前（获取 user 之后）添加:
 
 ```typescript
-// 店长/老板不受锁定限制
-const canBypassLock = ['owner', 'manager'].includes(user.role)
+// 店长/老板不受限制
+const canBypassAll = ['owner', 'manager'].includes(user.role)
 
-if (!canBypassLock) {
+// 先获取设计方案，检查所有权
+const { data: design } = await adminSupabase
+  .from('designs')
+  .select('created_by')
+  .eq('id', params.id)
+  .single()
+
+if (!design) {
+  return NextResponse.json({ error: '设计方案不存在' }, { status: 404 })
+}
+
+// 非店长/老板只能删自己创建的设计方案
+if (!canBypassAll) {
+  if (user.role === 'designer' && design.created_by !== user.id) {
+    return NextResponse.json({ error: '只能删除自己创建的设计方案' }, { status: 403 })
+  }
+  // 非设计师角色不允许删设计方案
+  if (user.role !== 'designer') {
+    return NextResponse.json({ error: '无权删除设计方案' }, { status: 403 })
+  }
+
   // 检查是否有安装记录
   const { data: installations } = await adminSupabase
     .from('installations')
@@ -275,12 +316,23 @@ git commit -m "feat: 客户管理订单详情页增加删除订单功能"
 
 **Files:**
 - Modify: `src/components/designs/design-list.tsx`
+- API 新增（可选）: `src/app/api/designs/[id]/has-installations/route.ts` 或在列表接口中返回安装计数
+
+**关键说明：** 方案管理的删除按钮需要根据是否有下游安装记录显示禁用状态。实现方式有两种：
+1. **简单方式**：列表加载时一起查询每个设计方案的安装计数，存储在 state 中
+2. **推荐方式**：在设计列表 API 中增加 `has_installations` 字段
+
+建议采用简单方式 - 在组件中为每个 design 存储一个 `hasInstallation: boolean` 状态。
 
 - [ ] **Step 1: 读取当前设计列表代码**
 
 路径: `src/components/designs/design-list.tsx`
 
-- [ ] **Step 2: 增加删除功能和禁用状态**
+- [ ] **Step 2: 读取设计列表 API 代码**
+
+路径: `src/app/api/designs/route.ts` - 查看当前列表返回字段
+
+- [ ] **Step 3: 增加删除功能和禁用状态**
 
 添加状态:
 
@@ -310,39 +362,108 @@ const handleDeleteDesign = async (id: string) => {
 }
 ```
 
-在卡片内增加删除按钮:
+在卡片内增加删除按钮（带禁用状态）:
 
 ```tsx
-{/* 在卡片底部操作区添加 */}
+{/* 在卡片底部操作区添加，hasInstallation 由列表加载时查询得出 */}
 <button
   onClick={() => handleDeleteDesign(design.id)}
-  className="text-red-600 hover:text-red-700 text-sm"
+  disabled={design.hasInstallation}
+  title={design.hasInstallation ? '还有安装记录，无法删除' : '删除'}
+  className={`text-sm ${design.hasInstallation
+    ? 'text-gray-400 cursor-not-allowed'
+    : 'text-red-600 hover:text-red-700'
+  }`}
 >
   删除
 </button>
 ```
 
-- [ ] **Step 3: 提交**
+**如何获取 hasInstallation：**
+
+在列表 API (`src/app/api/designs/route.ts`) 中增加子查询，为每个设计返回是否有安装记录：
+
+```typescript
+// designs 列表查询中增加
+const { data: designs } = await adminSupabase
+  .from('designs')
+  .select('*, installations(count)')
+  // ... 后续处理中将 count > 0 的标记为 hasInstallation: true
+```
+
+或在前端组件中遍历 designs 时，为每个 design 调用 API 查询。
+
+- [ ] **Step 4: 提交**
 
 ```bash
 git add src/components/designs/design-list.tsx
-git commit -m "feat: 方案管理列表增加删除设计方案功能"
+git commit -m "feat: 方案管理列表增加删除设计方案功能和禁用状态"
 ```
 
 ---
 
-## Task 5: UI - 安装管理列表增加删除按钮
+## Task 5: API - 安装记录删除所有权检查
 
 **Files:**
-- Modify: `src/components/installations/installation-list.tsx` 或对应文件
+- Modify: `src/app/api/installations/[id]/route.ts`
 
-- [ ] **Step 1: 找到安装列表组件**
+- [ ] **Step 1: 读取当前 installations API 代码**
+
+路径: `src/app/api/installations/[id]/route.ts`
+
+- [ ] **Step 2: 找到 DELETE 方法，增加所有权检查**
+
+在删除执行前（获取 user 之后）添加:
+
+```typescript
+// 店长/老板不受限制
+const canBypassAll = ['owner', 'manager'].includes(user.role)
+
+// 先获取安装记录，检查所有权
+const { data: installation } = await adminSupabase
+  .from('installations')
+  .select('created_by')
+  .eq('id', params.id)
+  .single()
+
+if (!installation) {
+  return NextResponse.json({ error: '安装记录不存在' }, { status: 404 })
+}
+
+// 非店长/老板只能删自己创建的安装记录
+if (!canBypassAll) {
+  if (user.role === 'installer' && installation.created_by !== user.id) {
+    return NextResponse.json({ error: '只能删除自己创建的安装记录' }, { status: 403 })
+  }
+  // 非安装师角色不允许删安装记录
+  if (user.role !== 'installer') {
+    return NextResponse.json({ error: '无权删除安装记录' }, { status: 403 })
+  }
+}
+// 安装记录无下游检查，直接删
+```
+
+- [ ] **Step 3: 提交**
+
+```bash
+git add src/app/api/installations/[id]/route.ts
+git commit -m "feat: 安装记录删除增加所有权检查"
+```
+
+---
+
+## Task 6: UI - 安装管理列表增加删除按钮
+
+**Files:**
+- Modify: `src/components/installations/installation-list.tsx` 或 `src/app/(dashboard)/installations/page.tsx`
+
+- [ ] **Step 1: 找到安装列表组件和卡片结构**
 
 路径可能在: `src/components/installations/installation-list.tsx` 或 `src/app/(dashboard)/installations/page.tsx`
 
-- [ ] **Step 2: 增加删除功能**
+- [ ] **Step 2: 增加删除功能和确认对话框**
 
-参考 Task 4 的模式，为每个安装卡片增加删除按钮。
+参考 Task 4 的模式，为每个安装卡片增加删除按钮和确认对话框。
 
 - [ ] **Step 3: 提交**
 
@@ -353,7 +474,7 @@ git commit -m "feat: 安装管理列表增加删除安装记录功能"
 
 ---
 
-## Task 6: 整体测试
+## Task 7: 整体测试
 
 - [ ] **Step 1: 启动开发服务器**
 
