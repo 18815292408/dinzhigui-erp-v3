@@ -156,7 +156,7 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
           <BackButton href="/designs" label="返回方案列表" />
           <h1 className="text-2xl font-semibold mt-2">{design.title}</h1>
           <p className="text-muted-foreground">
-            客户：{design.customers?.name || design.orders?.customer_name || '未知'} {design.customers?.house_type && `(${design.customers.house_type})`} · 联系方式：{design.customers?.phone || design.orders?.customer_phone || '无'}
+            客户：{design.customers?.name || design.orders?.customer_name || '未知'} {design.customers?.house_type && `(${design.customers.house_type})`} · 联系方式：{design.customers?.phone || design.orders?.customer_phone || (design.orders?.customer_name ? '未填写' : '无')}
           </p>
         </div>
         <div className="flex items-center gap-4">
