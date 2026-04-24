@@ -33,6 +33,12 @@ export function LoginForm() {
         throw new Error(data.error || '登录失败')
       }
 
+      // 登录成功后生成新的 session_id，用于通知弹窗控制
+      const sessionId = Date.now().toString(36) + Math.random().toString(36).substring(2)
+      localStorage.setItem('session_id', sessionId)
+      // 清除之前的通知弹窗标记，这样新登录后会重新显示弹窗
+      localStorage.removeItem('notification_modal_shown_for_session')
+
       router.push('/dashboard')
       router.refresh()
     } catch (err: any) {

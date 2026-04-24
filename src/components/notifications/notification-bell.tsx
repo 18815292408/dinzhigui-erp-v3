@@ -35,11 +35,15 @@ export function NotificationBell({ userRole }: NotificationBellProps) {
       if (['owner', 'manager'].includes(userRole)) {
         return
       }
-      // Use sessionStorage so closing browser/tab clears it, reopening will show modal again
-      const hasShown = sessionStorage.getItem('notification_modal_shown')
-      if (!hasShown) {
+      // 使用 localStorage + sessionId 来判断是否需要显示弹窗
+      // sessionId 在登录时生成，存储在 localStorage 中
+      // 每次登录后会生成新的 sessionId，所以重新登录会重置弹窗状态
+      const currentSessionId = localStorage.getItem('session_id')
+      const shownSessionId = localStorage.getItem('notification_modal_shown_for_session')
+
+      if (currentSessionId && shownSessionId !== currentSessionId) {
         setShowModal(true)
-        sessionStorage.setItem('notification_modal_shown', 'true')
+        localStorage.setItem('notification_modal_shown_for_session', currentSessionId)
       }
     }
   }, [mounted, urgentNotifications, userRole])
