@@ -99,6 +99,48 @@ export async function DELETE(
   }
 
   const adminSupabase = await createAdminClient()
+
+  // 店长/老板不受限制
+  const canBypassAll = ['owner', 'manager'].includes(user.role)
+
+  // 先获取设计方案，检查所有权
+  const { data: design } = await adminSupabase
+    .from('designs')
+    .select('created_by')
+    .eq('id', params.id)
+    .eq('organization_id', user.organization_id)
+    .single()
+
+  if (!design) {
+    return NextResponse.json({ error: '设计方案不存在' }, { status: 404 })
+  }
+
+  if (!canBypassAll) {
+    // 非店长/老板：设计师角色只能删自己创建的设计方案
+    if (user.role === 'designer') {
+      if (design.created_by !== user.id) {
+        return NextResponse.json({ error: '只能删除自己创建的设计方案' }, { status: 403 })
+      }
+    } else {
+      // 非设计师角色不允许删设计方案
+      return NextResponse.json({ error: '无权删除设计方案' }, { status: 403 })
+    }
+
+    // 检查是否有安装记录
+    const { data: installations } = await adminSupabase
+      .from('installations')
+      .select('id')
+      .eq('design_id', params.id)
+      .limit(1)
+
+    if (installations && installations.length > 0) {
+      return NextResponse.json(
+        { error: '该设计方案还有安装记录，请到安装管理删除安装记录后再试' },
+        { status: 400 }
+      )
+    }
+  }
+
   const { error } = await adminSupabase
     .from('designs')
     .delete()
