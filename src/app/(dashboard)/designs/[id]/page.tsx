@@ -27,17 +27,35 @@ async function getDesign(id: string) {
 
   const adminSupabase = await createAdminClient()
 
-  // 先获取设计方案，关联订单获取 order_no、signed_amount 和客户信息
+  // 先获取设计方案
   const { data: design } = await adminSupabase
     .from('designs')
-    .select('*, customers(id, name, phone, house_type), orders(id, order_no, signed_amount, customer_id, customer_name, customer_phone)')
+    .select('*, customers(id, name, phone, house_type)')
     .eq('id', id)
     .eq('organization_id', user.organization_id)
     .single()
 
   if (!design) return null
 
-  return design
+  // 如果有客户，查询该客户的订单签单金额和客户联系信息
+  let signedAmount = null
+  let orderCustomerName = null
+  let orderCustomerPhone = null
+  if (design.customers?.name) {
+    const { data: order } = await adminSupabase
+      .from('orders')
+      .select('signed_amount, customer_name, customer_phone')
+      .eq('customer_name', design.customers.name)
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    signedAmount = order?.signed_amount || null
+    orderCustomerName = order?.customer_name || null
+    orderCustomerPhone = order?.customer_phone || null
+  }
+
+  return { ...design, signed_amount: signedAmount, order_customer_name: orderCustomerName, order_customer_phone: orderCustomerPhone }
 }
 
 // Server Action to submit design (draft → submitted)
@@ -156,7 +174,7 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
           <BackButton href="/designs" label="返回方案列表" />
           <h1 className="text-2xl font-semibold mt-2">{design.title}</h1>
           <p className="text-muted-foreground">
-            客户：{design.customers?.name || design.orders?.customer_name || '未知'} {design.customers?.house_type && `(${design.customers.house_type})`} · 联系方式：{design.customers?.phone || design.orders?.customer_phone || '无'}
+            客户：{design.customers?.name || design.order_customer_name || '未知'} {design.customers?.house_type && `(${design.customers.house_type})`} · 联系方式：{design.customers?.phone || design.order_customer_phone || '无'}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -198,12 +216,8 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
               <p className="font-medium">{design.total_area ? `${design.total_area} ㎡` : '未填写'}</p>
             </div>
             <div className="p-4 border rounded-lg">
-              <p className="text-sm text-muted-foreground">关联订单</p>
-              <p className="font-medium">{design.orders?.order_no || '未关联'}</p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <p className="text-sm text-muted-foreground">签单金额</p>
-              <p className="font-medium">{design.orders?.signed_amount ? `¥${design.orders.signed_amount}万` : '未填写'}</p>
+              <p className="text-sm text-muted-foreground">成交价</p>
+              <p className="font-medium">{design.signed_amount ? `¥${design.signed_amount}万` : '未填写'}</p>
             </div>
           </div>
 
