@@ -30,11 +30,7 @@ async function getDesign(id: string) {
   // 先获取设计方案，关联订单获取 order_no、signed_amount 和客户信息
   const { data: design } = await adminSupabase
     .from('designs')
-    .select(`
-      *,
-      customers(id, name, phone, house_type),
-      orders(id, order_no, signed_amount, customer_id, customer_name, customer_phone)
-    `)
+    .select('*, customers(id, name, phone, house_type), orders(id, order_no, signed_amount, customer_id, customer_name, customer_phone)')
     .eq('id', id)
     .eq('organization_id', user.organization_id)
     .single()
