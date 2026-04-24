@@ -1,26 +1,29 @@
-import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 export async function GET() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('role, organization_id')
-    .eq('id', user.id)
-    .single()
+  const adminSupabase = await createAdminClient()
 
-  let query = supabase
+  let query = adminSupabase
     .from('notifications')
-    .select('*, order:orders(id, customer_name, order_no)')
-    .eq('organization_id', userData?.organization_id)
+    .select('*, order:orders(id, customer_name, order_no, status)')
+    .eq('organization_id', user.organization_id)
 
-  if (!['owner', 'manager'].includes(userData?.role)) {
+  if (!['owner', 'manager'].includes(user.role)) {
     query = query.eq('user_id', user.id)
   }
 
