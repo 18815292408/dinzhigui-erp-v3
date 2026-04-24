@@ -38,7 +38,7 @@ export function DesignEditForm({ design, onSaved }: Props) {
   })
 
   // 如果有订单签单金额，显示只读值而不是输入框
-  const hasSignedAmount = design.signed_amount != null
+  const hasSignedAmount = design.orders?.signed_amount != null
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -167,7 +167,7 @@ export function DesignEditForm({ design, onSaved }: Props) {
         <label className="text-sm font-medium">成交价（元）</label>
         {hasSignedAmount ? (
           <div className="p-3 bg-gray-50 rounded-md">
-            <p className="text-green-600 font-medium">¥{design.signed_amount}万（来自订单签单金额）</p>
+            <p className="text-green-600 font-medium">¥{design.orders?.signed_amount}万（来自订单签单金额）</p>
           </div>
         ) : (
           <Input
