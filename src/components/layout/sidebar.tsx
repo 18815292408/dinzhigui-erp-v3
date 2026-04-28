@@ -22,6 +22,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>
   roles: string[]
   section: 'top' | 'workflow' | 'settings'
+  adminOnly?: boolean
 }
 
 const navigation: NavItem[] = [
@@ -33,7 +34,7 @@ const navigation: NavItem[] = [
   { name: '工厂管理', href: '/factories', icon: Factory, roles: ['owner', 'manager'], section: 'settings' },
   { name: '消息中心', href: '/notifications', icon: Bell, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'settings' },
   { name: '账号管理', href: '/settings/users', icon: Settings, roles: ['owner'], section: 'settings' },
-  { name: '管理员面板', href: '/settings/admin', icon: Shield, roles: ['owner'], section: 'settings' },
+  { name: '管理员面板', href: '/settings/admin', icon: Shield, roles: ['owner'], section: 'settings', adminOnly: true },
 ]
 
 export function Sidebar({ userRole, userEmail }: { userRole: string; userEmail: string }) {
@@ -59,7 +60,7 @@ export function Sidebar({ userRole, userEmail }: { userRole: string; userEmail: 
         {/* 数据看板 - 独立置顶 */}
         <div className="space-y-1">
           {navigation
-            .filter((item) => item.section === 'top' && item.roles.includes(userRole))
+            .filter((item) => item.section === 'top' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL))
             .map((item) => {
               const isActive = pathname === item.href
               const Icon = item.icon
@@ -90,7 +91,7 @@ export function Sidebar({ userRole, userEmail }: { userRole: string; userEmail: 
           <div className="absolute left-[22px] top-[44px] bottom-[22px] w-px bg-apple-gray-200" />
           <div className="space-y-0">
             {navigation
-              .filter((item) => item.section === 'workflow' && item.roles.includes(userRole))
+              .filter((item) => item.section === 'workflow' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL))
               .map((item) => {
                 const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
                 const Icon = item.icon
@@ -124,7 +125,7 @@ export function Sidebar({ userRole, userEmail }: { userRole: string; userEmail: 
         {/* 系统设置 - 间距分隔 */}
         <div className="pt-1 space-y-1">
           {navigation
-            .filter((item) => item.section === 'settings' && item.roles.includes(userRole))
+            .filter((item) => item.section === 'settings' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL))
             .map((item) => {
               const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
               const Icon = item.icon

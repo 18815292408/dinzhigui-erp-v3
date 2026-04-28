@@ -49,8 +49,22 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const adminSupabase = await createAdminClient()
 
-  // Role limits (filtered by organization)
-  const ROLE_LIMITS: Record<string, number> = { owner: 99, manager: 1, sales: 3, designer: 3, installer: 3 }
+  // Role limits - default values, overridden by owner's custom limits
+  const DEFAULT_LIMITS: Record<string, number> = { manager: 1, sales: 3, designer: 3, installer: 3 }
+
+  // Fetch owner's custom role_limits for this organization
+  const { data: owner } = await adminSupabase
+    .from('users')
+    .select('role_limits')
+    .eq('organization_id', currentUser.organization_id)
+    .eq('role', 'owner')
+    .single()
+
+  const ROLE_LIMITS: Record<string, number> = {
+    owner: 99,
+    ...DEFAULT_LIMITS,
+    ...(owner?.role_limits as Record<string, number> || {}),
+  }
   const { count } = await adminSupabase
     .from('users')
     .select('id', { count: 'exact', head: true })

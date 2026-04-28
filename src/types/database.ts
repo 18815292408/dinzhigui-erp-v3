@@ -35,6 +35,7 @@ export interface Database {
           display_name: string | null
           role: 'owner' | 'manager' | 'designer' | 'sales' | 'installer'
           expires_at: string | null
+          role_limits: Record<string, number> | null
           created_at: string
           updated_at: string
         }
@@ -46,6 +47,7 @@ export interface Database {
           display_name?: string | null
           role: 'owner' | 'manager' | 'designer' | 'sales' | 'installer'
           expires_at?: string | null
+          role_limits?: Record<string, number> | null
           created_at?: string
           updated_at?: string
         }
@@ -56,6 +58,7 @@ export interface Database {
           display_name?: string | null
           role?: 'owner' | 'manager' | 'designer' | 'sales' | 'installer'
           expires_at?: string | null
+          role_limits?: Record<string, number> | null
           updated_at?: string
         }
       }

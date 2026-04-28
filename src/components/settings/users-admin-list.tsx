@@ -83,12 +83,78 @@ interface Props {
   staffByOrg: Record<string, any[]>
 }
 
+function LimitsModal({ owner, onClose, onSaved }: { owner: any; onClose: () => void; onSaved: () => void }) {
+  const defaultLimits = { manager: 1, sales: 3, designer: 3, installer: 3 }
+  const currentLimits = owner.role_limits || defaultLimits
+
+  const [limits, setLimits] = useState({ ...defaultLimits, ...currentLimits })
+  const [loading, setLoading] = useState(false)
+
+  const roleLabels: Record<string, string> = { manager: '店长', sales: '导购', designer: '设计师', installer: '安装/售后' }
+
+  const handleSave = async () => {
+    setLoading(true)
+    const res = await fetch(`/api/admin/users/${owner.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ role_limits: limits }),
+    })
+    if (res.ok) { onSaved(); onClose() }
+    else { const data = await res.json(); alert(data.error || '保存失败') }
+    setLoading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-[400px] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold mb-4">编辑账号限额 - {owner.display_name || owner.email}</h3>
+        <p className="text-xs text-gray-500 mb-4">设置该老板可创建的各类角色账号数量上限</p>
+        <div className="space-y-4">
+          {Object.entries(roleLabels).map(([role, label]) => (
+            <div key={role} className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">{label}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLimits({ ...limits, [role]: Math.max(0, (limits[role] || 0) - 1) })}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
+                >-</button>
+                <input
+                  type="number"
+                  value={limits[role] || 0}
+                  onChange={(e) => setLimits({ ...limits, [role]: Math.max(0, parseInt(e.target.value) || 0) })}
+                  className="w-16 text-center border rounded-lg py-1.5 text-sm"
+                  min={0}
+                />
+                <button
+                  type="button"
+                  onClick={() => setLimits({ ...limits, [role]: (limits[role] || 0) + 1 })}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
+                >+</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
+          <button onClick={handleSave} disabled={loading}
+            className="px-4 py-2 text-sm bg-apple-blue text-white rounded-lg hover:bg-blue-600 disabled:opacity-50">
+            {loading ? '保存中...' : '保存'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function UsersAdminList({ owners, staffByOrg }: Props) {
   const router = useRouter()
   const [expandedOrg, setExpandedOrg] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editRole, setEditRole] = useState('')
   const [editExpiry, setEditExpiry] = useState<string | null>(null)
+  const [editingLimits, setEditingLimits] = useState<any>(null)
 
   const handleEdit = (user: any) => {
     setEditingId(user.id)
@@ -210,46 +276,97 @@ export function UsersAdminList({ owners, staffByOrg }: Props) {
         return (
           <div key={owner.id}>
             {/* Owner row */}
-            <div
-              className="flex items-center justify-between p-3 border rounded-lg bg-white hover:bg-gray-50/50 cursor-pointer transition-colors"
-              onClick={() => toggleExpand(owner.organization_id)}
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1">
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  )}
-                </div>
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-white font-medium text-sm">
-                  {owner.display_name?.charAt(0) || '?'}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-sm">{owner.display_name}</p>
-                    <Badge className={roleColors.owner}>{getRoleLabel(owner)}</Badge>
+            {editingId === owner.id ? (
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-blue-50/50">
+                <div className="flex items-center gap-4">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-white font-medium text-sm">
+                    {owner.display_name?.charAt(0) || '?'}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {owner.email || '无邮箱'} {owner.phone ? `· ${owner.phone}` : ''}
-                    <span className="mx-2">|</span>
-                    <span className={expiryDisplay.color}>{expiryDisplay.text}</span>
-                  </p>
+                  <div className="flex flex-col gap-1">
+                    <select
+                      className="px-2 py-1 border rounded text-xs"
+                      value={editRole}
+                      onChange={(e) => setEditRole(e.target.value)}
+                    >
+                      {Object.entries(roleLabels).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                    <div className="flex flex-wrap gap-1">
+                      {expiryOptions.map((opt) => (
+                        <button
+                          key={opt.hours}
+                          type="button"
+                          className={`px-2 py-0.5 text-xs rounded border ${
+                            (opt.hours === -1 && editExpiry === null) ||
+                            (opt.hours !== -1 && editExpiry === hoursToExpiresAt(opt.hours))
+                              ? 'bg-blue-100 border-blue-500 text-blue-700'
+                              : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
+                          }`}
+                          onClick={() => setEditExpiry(opt.hours === -1 ? null : hoursToExpiresAt(opt.hours))}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {counts.manager > 0 && <span className="bg-indigo-50 px-1.5 py-0.5 rounded">店长 {counts.manager}</span>}
+                    {counts.sales > 0 && <span className="bg-blue-50 px-1.5 py-0.5 rounded">导购 {counts.sales}</span>}
+                    {counts.designer > 0 && <span className="bg-green-50 px-1.5 py-0.5 rounded">设计 {counts.designer}</span>}
+                    {counts.installer > 0 && <span className="bg-orange-50 px-1.5 py-0.5 rounded">安装 {counts.installer}</span>}
+                    {totalStaff === 0 && <span className="text-gray-400">暂无员工</span>}
+                    <span className="text-gray-400 ml-1">({totalStaff})</span>
+                  </div>
+                  <Button size="sm" onClick={() => handleSave(owner.id)}>保存</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>取消</Button>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {counts.manager > 0 && <span className="bg-indigo-50 px-1.5 py-0.5 rounded">店长 {counts.manager}</span>}
-                  {counts.sales > 0 && <span className="bg-blue-50 px-1.5 py-0.5 rounded">导购 {counts.sales}</span>}
-                  {counts.designer > 0 && <span className="bg-green-50 px-1.5 py-0.5 rounded">设计 {counts.designer}</span>}
-                  {counts.installer > 0 && <span className="bg-orange-50 px-1.5 py-0.5 rounded">安装 {counts.installer}</span>}
-                  {totalStaff === 0 && <span className="text-gray-400">暂无员工</span>}
-                  <span className="text-gray-400 ml-1">({totalStaff})</span>
+            ) : (
+              <div
+                className="flex items-center justify-between p-3 border rounded-lg bg-white hover:bg-gray-50/50 cursor-pointer transition-colors"
+                onClick={() => toggleExpand(owner.organization_id)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-white font-medium text-sm">
+                    {owner.display_name?.charAt(0) || '?'}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{owner.display_name}</p>
+                      <Badge className={roleColors.owner}>{getRoleLabel(owner)}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {owner.email || '无邮箱'} {owner.phone ? `· ${owner.phone}` : ''}
+                      <span className="mx-2">|</span>
+                      <span className={expiryDisplay.color}>{expiryDisplay.text}</span>
+                    </p>
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(owner) }}>编辑</Button>
-                <Button variant="ghost" size="sm" className="text-red-600" onClick={(e) => { e.stopPropagation(); handleDelete(owner.id, owner.display_name, true) }}>删除</Button>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {counts.manager > 0 && <span className="bg-indigo-50 px-1.5 py-0.5 rounded">店长 {counts.manager}</span>}
+                    {counts.sales > 0 && <span className="bg-blue-50 px-1.5 py-0.5 rounded">导购 {counts.sales}</span>}
+                    {counts.designer > 0 && <span className="bg-green-50 px-1.5 py-0.5 rounded">设计 {counts.designer}</span>}
+                    {counts.installer > 0 && <span className="bg-orange-50 px-1.5 py-0.5 rounded">安装 {counts.installer}</span>}
+                    {totalStaff === 0 && <span className="text-gray-400">暂无员工</span>}
+                    <span className="text-gray-400 ml-1">({totalStaff})</span>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(owner) }}>编辑</Button>
+                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditingLimits(owner) }}>限额</Button>
+                  <Button variant="ghost" size="sm" className="text-red-600" onClick={(e) => { e.stopPropagation(); handleDelete(owner.id, owner.display_name, true) }}>删除</Button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Staff rows - expandable */}
             {isExpanded && staff.length > 0 && (
@@ -265,6 +382,13 @@ export function UsersAdminList({ owners, staffByOrg }: Props) {
           </div>
         )
       })}
+      {editingLimits && (
+        <LimitsModal
+          owner={editingLimits}
+          onClose={() => setEditingLimits(null)}
+          onSaved={() => { setEditingLimits(null); router.refresh() }}
+        />
+      )}
     </div>
   )
 }

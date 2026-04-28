@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const adminSupabase = await createAdminClient()
   const body = await request.json()
-  const { role, display_name, expires_at } = body
+  const { role, display_name, expires_at, role_limits } = body
 
   const validRoles = ['owner', 'manager', 'sales', 'designer', 'installer']
   if (role && !validRoles.includes(role)) {
@@ -132,10 +132,28 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
   }
 
+  // Validate role_limits if provided
+  if (role_limits !== undefined) {
+    if (role_limits !== null && typeof role_limits === 'object') {
+      const validLimitRoles = ['manager', 'sales', 'designer', 'installer']
+      for (const [r, count] of Object.entries(role_limits)) {
+        if (!validLimitRoles.includes(r)) {
+          return NextResponse.json({ error: `无效的限额角色: ${r}` }, { status: 400 })
+        }
+        if (typeof count !== 'number' || count < 0 || !Number.isInteger(count)) {
+          return NextResponse.json({ error: `限额值必须是非负整数: ${r}=${count}` }, { status: 400 })
+        }
+      }
+    } else if (role_limits !== null) {
+      return NextResponse.json({ error: '无效的限额格式' }, { status: 400 })
+    }
+  }
+
   const updates: any = {}
   if (role) updates.role = role
   if (display_name !== undefined) updates.display_name = display_name
   if (expires_at !== undefined) updates.expires_at = expires_at
+  if (role_limits !== undefined) updates.role_limits = role_limits
   updates.updated_at = new Date().toISOString()
 
   // Fetch target user to check role for cascade
@@ -144,6 +162,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     .select('id, role, organization_id')
     .eq('id', params.id)
     .single()
+
+  // Only owners can have role_limits
+  if (role_limits !== undefined && targetUser && targetUser.role !== 'owner') {
+    return NextResponse.json({ error: '仅老板账号可设置创建限额' }, { status: 400 })
+  }
 
   const { error } = await adminSupabase
     .from('users')

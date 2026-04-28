@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 import { FactoryForm } from './factory-form'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,25 +28,19 @@ interface FactoryListProps {
 }
 
 export function FactoryList({ initialFactories, userRole }: FactoryListProps) {
+  const router = useRouter()
   const [factories, setFactories] = useState<Factory[]>(initialFactories)
   const [showModal, setShowModal] = useState(false)
   const [editingFactory, setEditingFactory] = useState<Factory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const supabase = createClient()
 
   const canManage = userRole === 'owner' || userRole === 'manager'
 
+  // Sync server-rendered data into local state (e.g. after router.refresh())
   useEffect(() => {
-    if (initialFactories.length === 0) {
-      fetchFactories()
-    }
-  }, [])
-
-  const fetchFactories = async () => {
-    const { data } = await supabase.from('factories').select('*').order('name')
-    setFactories(data || [])
-  }
+    setFactories(initialFactories)
+  }, [initialFactories])
 
   const handleAdd = () => {
     setEditingFactory(null)
@@ -63,10 +57,10 @@ export function FactoryList({ initialFactories, userRole }: FactoryListProps) {
     setEditingFactory(null)
   }
 
-  const handleSuccess = async () => {
+  const handleSuccess = () => {
     setShowModal(false)
     setEditingFactory(null)
-    await fetchFactories()
+    router.refresh()
   }
 
   const handleDelete = async (id: string) => {
@@ -80,11 +74,12 @@ export function FactoryList({ initialFactories, userRole }: FactoryListProps) {
         const err = await res.json()
         throw new Error(err.error || '删除失败')
       }
-      await fetchFactories()
+      setDeleteConfirmId(null)
+      router.refresh()
     } catch (err: any) {
       alert('删除失败：' + err.message)
+      setDeleteConfirmId(null)
     }
-    setDeleteConfirmId(null)
     setIsSubmitting(false)
   }
 

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-const ROLE_LIMITS = { manager: 1, sales: 3, designer: 3, installer: 3 }
+const DEFAULT_LIMITS = { manager: 1, sales: 3, designer: 3, installer: 3 }
 const roleLabels: Record<string, string> = { owner: '老板', manager: '店长', sales: '导购', designer: '设计师', installer: '安装/售后' }
 
 interface Props {
@@ -28,10 +28,10 @@ export function UserForm({ currentUserRole, organizationId, isManagerCreation = 
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [remainingSlots, setRemainingSlots] = useState<Record<string, number>>({
-    manager: ROLE_LIMITS.manager,
-    sales: ROLE_LIMITS.sales,
-    designer: ROLE_LIMITS.designer,
-    installer: ROLE_LIMITS.installer,
+    manager: DEFAULT_LIMITS.manager,
+    sales: DEFAULT_LIMITS.sales,
+    designer: DEFAULT_LIMITS.designer,
+    installer: DEFAULT_LIMITS.installer,
   })
   const router = useRouter()
   const supabase = createClient()
@@ -47,19 +47,33 @@ export function UserForm({ currentUserRole, organizationId, isManagerCreation = 
       })
       return
     }
-    Promise.all([
-      supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'manager').eq('organization_id', organizationId),
-      supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'sales').eq('organization_id', organizationId),
-      supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'designer').eq('organization_id', organizationId),
-      supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'installer').eq('organization_id', organizationId),
-    ]).then(([managerRes, salesRes, designerRes, installerRes]) => {
+
+    async function fetchData() {
+      // Fetch dynamic limits from API
+      const limitsRes = await fetch('/api/users/limits', { credentials: 'include' })
+      let roleLimits = DEFAULT_LIMITS
+      if (limitsRes.ok) {
+        const data = await limitsRes.json()
+        roleLimits = data.limits
+      }
+
+      // Query existing role counts
+      const [managerRes, salesRes, designerRes, installerRes] = await Promise.all([
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'manager').eq('organization_id', organizationId),
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'sales').eq('organization_id', organizationId),
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'designer').eq('organization_id', organizationId),
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'installer').eq('organization_id', organizationId),
+      ])
+
       setRemainingSlots({
-        manager: ROLE_LIMITS.manager - (managerRes.count || 0),
-        sales: ROLE_LIMITS.sales - (salesRes.count || 0),
-        designer: ROLE_LIMITS.designer - (designerRes.count || 0),
-        installer: ROLE_LIMITS.installer - (installerRes.count || 0),
+        manager: Math.max(0, (roleLimits.manager || DEFAULT_LIMITS.manager) - (managerRes.count || 0)),
+        sales: Math.max(0, (roleLimits.sales || DEFAULT_LIMITS.sales) - (salesRes.count || 0)),
+        designer: Math.max(0, (roleLimits.designer || DEFAULT_LIMITS.designer) - (designerRes.count || 0)),
+        installer: Math.max(0, (roleLimits.installer || DEFAULT_LIMITS.installer) - (installerRes.count || 0)),
       })
-    })
+    }
+
+    fetchData()
   }, [isManagerCreation, organizationId])
 
   // Build role options based on current user role
