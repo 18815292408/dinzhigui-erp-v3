@@ -2,6 +2,7 @@
 
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { buildInstallationCardView } from '@/lib/order-workflow'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -53,36 +54,44 @@ export function InstallationList({ installations }: { installations: any[] }) {
       {deleteError && (
         <div className="text-red-600 text-sm mb-2">{deleteError}</div>
       )}
-      {installations.map((inst) => (
-        <Card key={inst.id} className="p-4 hover:bg-gray-50 transition-colors">
-          <div className="flex items-center justify-between">
-            <Link href={`/installations/${inst.id}`} className="flex-1">
-              <h3 className="font-medium">{inst.customers?.name || '未知客户'}</h3>
-              <p className="text-sm text-muted-foreground">
-                方案：{inst.designs?.title || '无'}
-                {inst.designs?.final_price && ` · ¥${inst.designs.final_price.toLocaleString()}`}
-                {inst.designs?.room_count && ` · ${inst.designs.room_count}室`}
-                {inst.customers?.house_type && ` (${inst.customers.house_type})`}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                联系方式：{inst.customers?.phone || '无'}
-              </p>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Badge className={statusConfig[inst.status as keyof typeof statusConfig]?.color}>
-                {statusConfig[inst.status as keyof typeof statusConfig]?.label}
-              </Badge>
-              <button
-                onClick={() => handleDeleteInstallation(inst.id)}
-                disabled={deletingId === inst.id}
-                className="text-sm disabled:opacity-50 text-red-600 hover:text-red-700"
-              >
-                {deletingId === inst.id ? '删除中...' : '删除'}
-              </button>
+      {installations.map((inst) => {
+        const card = buildInstallationCardView({
+          customer: inst.customers,
+          design: inst.designs,
+          order: inst.orders,
+        })
+
+        return (
+          <Card key={inst.id} className="p-4 hover:bg-gray-50 transition-colors">
+            <div className="flex items-center justify-between">
+              <Link href={`/installations/${inst.id}`} className="flex-1">
+                <h3 className="font-medium">{card.customerName || '未知客户'}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {card.orderNo && `订单号：${card.orderNo} · `}
+                  方案：{card.designTitle || '无'}
+                  {card.roomCount && ` · ${card.roomCount}室`}
+                  {card.houseType && ` (${card.houseType})`}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  联系方式：{card.customerPhone || '无'}
+                </p>
+              </Link>
+              <div className="flex items-center gap-2">
+                <Badge className={statusConfig[inst.status as keyof typeof statusConfig]?.color}>
+                  {statusConfig[inst.status as keyof typeof statusConfig]?.label}
+                </Badge>
+                <button
+                  onClick={() => handleDeleteInstallation(inst.id)}
+                  disabled={deletingId === inst.id}
+                  className="text-sm disabled:opacity-50 text-red-600 hover:text-red-700"
+                >
+                  {deletingId === inst.id ? '删除中...' : '删除'}
+                </button>
+              </div>
             </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        )
+      })}
     </div>
   )
 }

@@ -23,7 +23,8 @@ export async function POST(
   const { designer_id } = await request.json()
   const orderId = params.id
 
-  const { data: order, error } = await adminSupabase
+  // owner/manager 可以派任意订单，sales 只能派自己创建的
+  let query = adminSupabase
     .from('orders')
     .update({
       assigned_designer: designer_id,
@@ -31,12 +32,19 @@ export async function POST(
       updated_at: new Date().toISOString()
     })
     .eq('id', orderId)
-    .eq('created_by', user.id)
-    .select()
-    .single()
+
+  if (user.role === 'sales') {
+    query = query.eq('created_by', user.id)
+  }
+
+  const { data: order, error } = await query.select().single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!order) {
+    return NextResponse.json({ error: '订单不存在或无权操作' }, { status: 404 })
   }
 
   // Create urgent notification for designer
@@ -46,18 +54,21 @@ export async function POST(
     type: 'new_order',
     priority: 'urgent',
     title: '新订单派发',
-    summary: `客户 ${order.customer_name} 的订单已派给您，请及时接单`,
+    summary: `客户 ${order.customer_name || '未知'} 的订单已派给您，请及时接单`,
     related_order_id: orderId
   })
 
   // 更新客户状态为有进行中订单
-  await adminSupabase
-    .from('customers')
-    .update({
-      has_active_order: true,
-      order_stage: 'pending_design'
-    })
-    .eq('id', order.customer_id)
+  // orders 表用 customer_name 关联客户
+  if (order.customer_name) {
+    await adminSupabase
+      .from('customers')
+      .update({
+        has_active_order: true,
+        order_stage: 'pending_design'
+      })
+      .eq('name', order.customer_name)
+  }
 
   return NextResponse.json(order)
 }

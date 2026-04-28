@@ -5,6 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { OrderStatusFlow } from '@/components/orders/order-status-flow'
 import { FactorySelector } from '@/components/orders/factory-selector'
+import { DesignEditForm } from '@/components/designs/design-edit-form'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { wanToYuan, yuanToWan, formatMoney } from '@/lib/format-amount'
+import Link from 'next/link'
 
 const STATUS_LABELS: Record<string, string> = {
   pending_dispatch: '待派单',
@@ -42,15 +46,27 @@ interface Order {
   payment_status: string
   estimated_shipment_date: string
   installation_status: string
-  created_by_user: { name: string }
-  assigned_designer_user: { name: string }
-  assigned_installer_user: { name: string }
+  assigned_installer: string | null
+  signed_amount: number | null
+  final_order_amount: number | null
+  created_by_user: { id: string; name: string }
+  assigned_designer_user: { id: string; name: string }
+  assigned_installer_user: { id: string; name: string }
+  designs: any[]
 }
 
 interface User {
   id: string
   name: string
   role: string
+}
+
+interface Installation {
+  id: string
+  status: string
+  scheduled_date: string | null
+  assigned_to: string | null
+  feedback: string | null
 }
 
 export default function OrderDetailPage() {
@@ -64,17 +80,23 @@ export default function OrderDetailPage() {
   const [signedAmountInput, setSignedAmountInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null)
+  const [installation, setInstallation] = useState<Installation | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
     fetchOrder()
     fetchUsers()
-    // 获取当前用户信息
     fetch('/api/auth/session', { credentials: 'include' })
       .then(res => res.json())
       .then(data => setCurrentUser(data.user))
       .catch(console.error)
   }, [])
+
+  useEffect(() => {
+    if (order?.status === 'in_install') {
+      fetchInstallation()
+    }
+  }, [order?.status, order?.id])
 
   const fetchOrder = async () => {
     try {
@@ -91,12 +113,25 @@ export default function OrderDetailPage() {
   }
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('users').select('id, display_name, name, role')
+    const { data } = await supabase.from('users').select('id, display_name, role')
     const usersList = (data || []).map((u: any) => ({
       ...u,
       name: u.display_name || u.name
     }))
     setUsers(usersList)
+  }
+
+  const fetchInstallation = async () => {
+    try {
+      const res = await fetch(`/api/installations`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        const found = (data.data || []).find((i: any) => i.order_id === params.id)
+        if (found) setInstallation(found)
+      }
+    } catch (err) {
+      console.error('Failed to fetch installation:', err)
+    }
   }
 
   const handleUpdateSignedAmount = async () => {
@@ -107,7 +142,7 @@ export default function OrderDetailPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ signed_amount: parseFloat(signedAmountInput) })
+        body: JSON.stringify({ signed_amount: wanToYuan(signedAmountInput) })
       })
       if (!res.ok) {
         const err = await res.json()
@@ -279,6 +314,8 @@ export default function OrderDetailPage() {
   const designers = users.filter(u => u.role === 'designer')
   const installers = users.filter(u => u.role === 'installer')
   const canPerformActions = currentUser && !['owner', 'manager'].includes(currentUser.role)
+  const isAssignedDesigner = currentUser?.id === order.assigned_designer_user?.id
+  const design = order.designs?.[0]
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -296,6 +333,7 @@ export default function OrderDetailPage() {
 
       <OrderStatusFlow currentStatus={order.status} />
 
+      {/* 客户信息 */}
       <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
         <h2 className="text-lg font-semibold mb-4">客户信息</h2>
         <div className="grid grid-cols-2 gap-4">
@@ -333,11 +371,11 @@ export default function OrderDetailPage() {
             ) : (
               <div className="flex items-center gap-2">
                 <span className={order.signed_amount ? 'text-green-600 font-medium' : 'text-gray-400'}>
-                  {order.signed_amount ? `¥${order.signed_amount}万` : '未填写'}
+                  {formatMoney(order.signed_amount)}
                 </span>
                 <button
                   onClick={() => {
-                    setSignedAmountInput(order.signed_amount?.toString() || '')
+                    setSignedAmountInput(yuanToWan(order.signed_amount))
                     setEditingAmount(true)
                   }}
                   className="text-blue-500 text-sm hover:underline"
@@ -350,6 +388,67 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
+      {/* 设计方案区域 */}
+      {design && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>设计方案</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {order.status === 'designing' && isAssignedDesigner ? (
+              <DesignEditForm
+                design={design}
+                signedAmount={order.signed_amount}
+                onSaved={fetchOrder}
+              />
+            ) : (
+              <DesignReadOnly design={design} signedAmount={order.signed_amount} />
+            )}
+
+            {order.status === 'designing' && isAssignedDesigner && (
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-sm text-gray-500 mb-3">方案完善后提交，进入待下单阶段</p>
+                <button
+                  onClick={handleSubmitDesign}
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                >
+                  提交方案
+                </button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 安装信息区域 */}
+      {order.status === 'in_install' && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>安装信息</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {installation ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><span className="text-gray-500">安装单状态：</span>{installation.status === 'pending' ? '待安装' : installation.status === 'in_progress' ? '进行中' : installation.status === 'completed' ? '已完成' : installation.status}</div>
+                  <div><span className="text-gray-500">预约日期：</span>{installation.scheduled_date || '待定'}</div>
+                </div>
+                <Link
+                  href={`/installations/${installation.id}`}
+                  className="inline-block mt-2 text-sm text-blue-600 hover:underline"
+                >
+                  去安装管理查看详情 →
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">安装单信息加载中...</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 派单 */}
       {order.status === 'pending_dispatch' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">派单给设计师</h2>
@@ -368,30 +467,20 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {order.status === 'designing' && canPerformActions && (
-        <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
-          <h2 className="text-lg font-semibold mb-4">设计中</h2>
-          <p className="text-gray-500 mb-4">预计出图日期：{order.design_due_date}</p>
-          <button
-            onClick={handleSubmitDesign}
-            disabled={actionLoading}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-          >
-            提交方案
-          </button>
-        </div>
-      )}
-
+      {/* 待下单 */}
       {order.status === 'pending_order' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">下单至工厂</h2>
           <FactorySelector
             value={order.factory_records || []}
-            onChange={handlePlaceOrder}
+            showConfirm
+            onConfirm={handlePlaceOrder}
+            confirmText={actionLoading ? '下单中...' : '确认下单'}
           />
         </div>
       )}
 
+      {/* 待打款 */}
       {order.status === 'pending_payment' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">待打款</h2>
@@ -405,6 +494,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {/* 待出货：填写出货时间即可，安装师傅已在确认打款时指派 */}
       {order.status === 'pending_shipment' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">填写出货时间</h2>
@@ -414,28 +504,30 @@ export default function OrderDetailPage() {
               id="shipment-date"
               className="w-full px-3 py-2 border rounded-lg"
             />
-            <div>
-              <label className="block text-sm font-medium mb-2">指派安装人员</label>
-              <div className="flex flex-wrap gap-2">
-                {installers.map(i => (
-                  <button
-                    key={i.id}
-                    onClick={() => {
-                      const dateInput = document.getElementById('shipment-date') as HTMLInputElement
-                      if (dateInput?.value) handleSetShipment(dateInput.value, i.id)
-                    }}
-                    disabled={actionLoading}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {i.name}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <button
+              onClick={() => {
+                const dateInput = document.getElementById('shipment-date') as HTMLInputElement
+                if (!dateInput?.value) {
+                  setError('请填写出货日期')
+                  return
+                }
+                if (!order.assigned_installer) {
+                  setError('请先指派安装师傅')
+                  return
+                }
+                handleSetShipment(dateInput.value, order.assigned_installer)
+              }}
+              disabled={actionLoading}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+            >
+              {actionLoading ? '处理中...' : '确认出货'}
+            </button>
+            {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
         </div>
       )}
 
+      {/* 安装中 */}
       {order.status === 'in_install' && canPerformActions && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">安装进度</h2>
@@ -460,6 +552,68 @@ export default function OrderDetailPage() {
             >
               确认完成
             </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 设计方案只读展示
+function DesignReadOnly({ design, signedAmount }: { design: any; signedAmount?: number | null }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 border rounded-lg">
+          <p className="text-sm text-gray-500">房间数量</p>
+          <p className="font-medium">{design.room_count || '未填写'}</p>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <p className="text-sm text-gray-500">总面积</p>
+          <p className="font-medium">{design.total_area ? `${design.total_area} ㎡` : '未填写'}</p>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <p className="text-sm text-gray-500">成交价</p>
+          <p className="font-medium">
+            {signedAmount ? `${formatMoney(signedAmount)}（来自订单）` : design.final_price ? `¥${design.final_price}` : '未填写'}
+          </p>
+        </div>
+      </div>
+
+      {design.description && (
+        <div className="p-4 border rounded-lg">
+          <p className="text-sm text-gray-500 mb-1">方案描述</p>
+          <p className="text-sm whitespace-pre-wrap">{design.description}</p>
+        </div>
+      )}
+
+      {(design.kujiale_link || design.cad_file_url) && (
+        <div className="grid grid-cols-2 gap-4">
+          {design.kujiale_link && (
+            <div className="p-4 border rounded-lg">
+              <p className="text-sm text-gray-500">酷家乐链接</p>
+              <a
+                href={design.kujiale_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline break-all"
+              >
+                {design.kujiale_link}
+              </a>
+            </div>
+          )}
+          {design.cad_file_url && (
+            <div className="p-4 border rounded-lg">
+              <p className="text-sm text-gray-500">CAD文件</p>
+              <a
+                href={design.cad_file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline"
+              >
+                {design.cad_file || '点击下载'}
+              </a>
+            </div>
           )}
         </div>
       )}

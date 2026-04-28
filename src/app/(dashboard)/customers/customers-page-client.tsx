@@ -10,6 +10,13 @@ interface Customer {
   id: string
   name: string
   phone: string
+  house_type: string | null
+  orders?: Array<{
+    id: string
+    order_no: string
+    status: string
+    signed_amount: number | null
+  }>
   intention: string
   created_at: string
   [key: string]: unknown

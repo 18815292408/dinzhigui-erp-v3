@@ -10,7 +10,7 @@ export default async function UsersPage() {
   const sessionCookie = cookieStore.get('session')
 
   const user = parseSessionUser(sessionCookie?.value || '')
-  const canCreateUser = user && ['owner', 'manager'].includes(user.role)
+  const canCreateUser = user && ['owner'].includes(user.role)
 
   const adminSupabase = await createAdminClient()
   const { data: users } = user

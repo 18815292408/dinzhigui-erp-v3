@@ -1,5 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 const INSTALLATION_STATUS_FLOW = [
   'pending_ship',
@@ -15,51 +17,72 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const adminSupabase = await createAdminClient()
+
   const { installation_status } = await request.json()
   const orderId = params.id
 
-  const { data: currentOrder } = await supabase
+  const { data: currentOrder } = await adminSupabase
     .from('orders')
-    .select('installation_status, assigned_designer, organization_id, order_no')
+    .select('installation_status, assigned_installer, assigned_designer, organization_id, order_no')
     .eq('id', orderId)
-    .eq('assigned_installer', user.id)
     .single()
 
   if (!currentOrder) {
-    return NextResponse.json({ error: 'Order not found or not assigned' }, { status: 404 })
+    return NextResponse.json({ error: '订单不存在' }, { status: 404 })
+  }
+
+  // owner/manager 可以操作，installer 只能操作分配给自己的
+  if (!['owner', 'manager'].includes(user.role) && user.role !== 'installer') {
+    return NextResponse.json({ error: '无权操作' }, { status: 403 })
+  }
+  if (user.role === 'installer' && currentOrder.assigned_installer !== user.id) {
+    return NextResponse.json({ error: '无权操作' }, { status: 403 })
   }
 
   const currentIndex = INSTALLATION_STATUS_FLOW.indexOf(currentOrder.installation_status)
   const newIndex = INSTALLATION_STATUS_FLOW.indexOf(installation_status)
 
   if (newIndex < currentIndex && installation_status !== 'supplement_pending') {
-    return NextResponse.json({ error: 'Invalid status transition' }, { status: 400 })
+    return NextResponse.json({ error: '不能倒退安装状态' }, { status: 400 })
   }
 
-  const { data: order, error } = await supabase
+  let query = adminSupabase
     .from('orders')
     .update({
       installation_status,
       updated_at: new Date().toISOString()
     })
     .eq('id', orderId)
-    .eq('assigned_installer', user.id)
-    .select()
-    .single()
+
+  if (user.role === 'installer') {
+    query = query.eq('assigned_installer', user.id)
+  }
+
+  const { data: order, error } = await query.select().single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  if (!order) {
+    return NextResponse.json({ error: '订单不存在或无权操作' }, { status: 404 })
+  }
+
   if (installation_status === 'supplement_pending') {
-    await supabase.from('notifications').insert({
+    await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: order.assigned_designer,
       type: 'supplement_request',

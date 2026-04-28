@@ -70,15 +70,15 @@ export async function POST(
   }
 
   // Create a new design record for this order
+  // 注意：订单没有 customer_id 字段，客户信息通过 order_id 关联的订单获取
   const { data: design, error: designError } = await adminSupabase
     .from('designs')
     .insert({
       organization_id: order.organization_id,
-      customer_id: order.customer_id,
       created_by: user.id,
       status: 'draft',
       title: `${order.customer_name} - 设计方案`,
-      order_id: orderId,  // 关联订单ID
+      order_id: orderId,  // 通过 order_id 关联订单，客户信息从订单的 customer_name/customer_phone 获取
     })
     .select()
     .single()
@@ -89,7 +89,7 @@ export async function POST(
 
   // Update order status and design deadline
   const updates: any = {
-    status: 'in_design',
+    status: 'designing',
     updated_at: new Date().toISOString()
   }
   if (design_due_days) {
@@ -104,12 +104,16 @@ export async function POST(
     .update(updates)
     .eq('id', orderId)
 
-  // Mark notification as read
-  const { error: readError } = await adminSupabase
+  // Mark notification as read (owner/manager 可标记任意通知，其他人只能标记自己的)
+  let readQuery = adminSupabase
     .from('notifications')
     .update({ is_read: true })
     .eq('id', params.id)
-    .eq('user_id', user.id)  // Ensure we only update our own notifications
+    .eq('organization_id', user.organization_id)
+  if (!['owner', 'manager'].includes(user.role)) {
+    readQuery = readQuery.eq('user_id', user.id)
+  }
+  const { error: readError } = await readQuery
 
   if (readError) {
     console.error('Failed to mark notification as read:', readError)

@@ -8,7 +8,7 @@ const STATUS_STEPS = [
   { key: 'pending_payment', label: '待打款' },
   { key: 'pending_shipment', label: '待出货' },
   { key: 'in_install', label: '安装中' },
-  { key: 'completed', label: '已完成' }
+  { key: 'completed', label: '已完结' }
 ]
 
 interface OrderStatusFlowProps {

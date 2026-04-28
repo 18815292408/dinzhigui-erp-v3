@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
 export default function NewOrderPage() {
   const router = useRouter()
@@ -14,26 +13,48 @@ export default function NewOrderPage() {
     house_type: '',
     house_area: ''
   })
-  const supabase = createClient()
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
-    const { error } = await supabase.from('orders').insert({
-      ...form,
-      house_area: form.house_area ? parseFloat(form.house_area) : null
-    })
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          customer_name: form.customer_name,
+          customer_phone: form.customer_phone,
+          customer_address: form.customer_address,
+          house_type: form.house_type,
+          house_area: form.house_area ? parseFloat(form.house_area) : null
+        })
+      })
 
-    setLoading(false)
-    if (!error) {
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '创建失败')
+      }
+
       router.push('/orders')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">新建订单</h1>
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg">
+          {error}
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">客户姓名 *</label>

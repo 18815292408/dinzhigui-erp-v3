@@ -17,8 +17,8 @@ export default async function NewUserPage() {
     redirect('/login')
   }
 
-  // Only owner and manager can create accounts
-  if (!['owner', 'manager'].includes(user.role)) {
+  // Only owner can create accounts
+  if (user.role !== 'owner') {
     redirect('/dashboard')
   }
 

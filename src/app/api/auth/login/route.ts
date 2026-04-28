@@ -21,19 +21,23 @@ export async function POST(request: NextRequest) {
       })
       userId = authResult.data?.user?.id
     } else if (phone) {
-      const normalizedPhone = phone.replace(/^\+86/, '')
+      // phone format: +86xxxxxxxxxxx
+      const normalizedPhone = phone.replace(/^\+86/, '').replace(/^86/, '')
       const { data: userProfile } = await adminSupabase
         .from('users')
-        .select('id, email')
-        .eq('phone', normalizedPhone)
+        .select('id, email, phone')
+        .or(`phone.eq.${normalizedPhone},phone.eq.+86${normalizedPhone},phone.eq.86${normalizedPhone}`)
         .single()
 
-      if (!userProfile || !userProfile.email) {
+      if (!userProfile) {
         return NextResponse.json({ error: '该手机号未注册' }, { status: 401 })
       }
 
+      // Use real email if available, otherwise use synthetic email for phone-only accounts
+      const loginEmail = userProfile.email || `+86${normalizedPhone}@phone.local`
+
       authResult = await supabase.auth.signInWithPassword({
-        email: userProfile.email,
+        email: loginEmail,
         password,
       })
       userId = authResult.data?.user?.id

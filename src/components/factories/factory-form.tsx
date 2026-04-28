@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 interface Factory {
   id?: string
@@ -25,24 +24,44 @@ export function FactoryForm({ factory, onSuccess, onCancel }: FactoryFormProps) 
     address: factory?.address || ''
   })
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
-    if (factory?.id) {
-      await supabase.from('factories').update(form).eq('id', factory.id)
-    } else {
-      await supabase.from('factories').insert(form)
+    try {
+      const url = factory?.id ? `/api/factories/${factory.id}` : '/api/factories'
+      const method = factory?.id ? 'PUT' : 'POST'
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(form)
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '保存失败')
+      }
+
+      onSuccess()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
-    onSuccess()
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium mb-1">工厂名称</label>
         <input

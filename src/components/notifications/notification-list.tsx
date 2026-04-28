@@ -11,6 +11,8 @@ const PRIORITY_CONFIG = {
   info: { label: '信息', color: 'border-purple-500 bg-purple-50' }
 }
 
+type NotificationPriority = keyof typeof PRIORITY_CONFIG
+
 export function NotificationList() {
   const [notifications, setNotifications] = useState<any[]>([])
   const supabase = createClient()
@@ -29,18 +31,21 @@ export function NotificationList() {
   }
 
   const markAsRead = async (id: string) => {
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', id)
+    await fetch(`/api/notifications/${id}/read`, {
+      method: 'POST',
+      credentials: 'include'
+    })
     fetchNotifications()
   }
 
   const markAllAsRead = async () => {
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('is_read', false)
+    // Mark all unread as read
+    for (const notif of notifications.filter(n => !n.is_read)) {
+      await fetch(`/api/notifications/${notif.id}/read`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+    }
     fetchNotifications()
   }
 
@@ -55,7 +60,8 @@ export function NotificationList() {
 
       <div className="space-y-3">
         {notifications.map(notif => {
-          const config = PRIORITY_CONFIG[notif.priority] || PRIORITY_CONFIG.info
+          const priority = notif.priority as NotificationPriority
+          const config = PRIORITY_CONFIG[priority] || PRIORITY_CONFIG.info
           return (
             <div
               key={notif.id}

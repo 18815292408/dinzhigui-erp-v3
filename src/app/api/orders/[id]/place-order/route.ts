@@ -1,13 +1,20 @@
-import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -27,11 +34,11 @@ export async function POST(
 
   // 检查签单金额
   if (!orderToCheck.signed_amount || orderToCheck.signed_amount <= 0) {
-    // 获取订单创建者（导购）的 ID
+    // 获取订单创建者（导购）的 ID，通过 customer_name 匹配
     const { data: customer } = await adminSupabase
       .from('customers')
       .select('created_by')
-      .eq('id', orderToCheck.customer_id)
+      .eq('name', orderToCheck.customer_name)
       .single()
 
     // 发送通知给导购
@@ -55,7 +62,13 @@ export async function POST(
   const { factory_records } = await request.json()
   const orderId = params.id
 
-  const { data: order, error } = await supabase
+  // 只有 owner/manager/designer 可以操作
+  if (!['owner', 'manager', 'designer'].includes(user.role)) {
+    return NextResponse.json({ error: '无权操作' }, { status: 403 })
+  }
+
+  // designer 只能操作分配给自己的订单
+  let query = adminSupabase
     .from('orders')
     .update({
       status: 'pending_payment',
@@ -63,13 +76,20 @@ export async function POST(
       updated_at: new Date().toISOString()
     })
     .eq('id', orderId)
-    .eq('assigned_designer', user.id)
     .eq('status', 'pending_order')
-    .select()
-    .single()
+
+  if (user.role === 'designer') {
+    query = query.eq('assigned_designer', user.id)
+  }
+
+  const { data: order, error } = await query.select().single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!order) {
+    return NextResponse.json({ error: '订单不存在或无权操作' }, { status: 404 })
   }
 
   return NextResponse.json(order)

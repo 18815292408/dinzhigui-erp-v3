@@ -28,20 +28,22 @@ export function NotificationModal({ onClose }: NotificationModalProps) {
   }, [])
 
   const handleGoToCenter = async () => {
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('priority', 'urgent')
-      .eq('is_read', false)
+    // Mark all urgent notifications as read via API
+    for (const n of urgentNotifications) {
+      await fetch(`/api/notifications/${n.id}/read`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+    }
     onClose()
     router.push('/notifications')
   }
 
   const handleAcknowledge = async (id: string) => {
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', id)
+    await fetch(`/api/notifications/${id}/read`, {
+      method: 'POST',
+      credentials: 'include'
+    })
     setUrgentNotifications(prev => prev.filter(n => n.id !== id))
     if (urgentNotifications.length <= 1) {
       onClose()
@@ -50,8 +52,8 @@ export function NotificationModal({ onClose }: NotificationModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-md mx-4">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">

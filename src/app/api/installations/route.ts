@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
   const adminSupabase = await createAdminClient()
   const { data, error } = await adminSupabase
     .from('installations')
-    .select('*')
+    .select(`
+      *,
+      orders(order_no)
+    `)
     .eq('organization_id', user.organization_id)
     .order('created_at', { ascending: false })
 
@@ -45,20 +48,16 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const adminSupabase = await createAdminClient()
 
-  // 校验：如果提供了design_id，必须确保设计方案已确认才能创建安装单
+  // 如果提供了 design_id，仅验证设计方案存在即可（不再要求 confirmed）
   if (body.design_id) {
     const { data: design, error: designError } = await adminSupabase
       .from('designs')
-      .select('status')
+      .select('id')
       .eq('id', body.design_id)
       .single()
 
     if (designError || !design) {
       return NextResponse.json({ error: '设计方案不存在' }, { status: 400 })
-    }
-
-    if (design.status !== 'confirmed') {
-      return NextResponse.json({ error: '只有已确认的设计方案才能创建安装单' }, { status: 400 })
     }
   }
 
@@ -66,9 +65,10 @@ export async function POST(request: NextRequest) {
     .from('installations')
     .insert({
       organization_id: user.organization_id,
+      order_id: body.order_id || null,
       customer_id: body.customer_id || null,
       design_id: body.design_id || null,
-      assigned_to: null,
+      assigned_to: body.assigned_to || null,
       status: 'pending',
       scheduled_date: body.scheduled_date || null,
       completed_at: null,

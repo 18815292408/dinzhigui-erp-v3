@@ -6,10 +6,21 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
-const statusConfig = {
-  draft: { label: '草稿', color: 'bg-gray-100 text-gray-800' },
+const statusConfig: Record<string, { label: string; color: string }> = {
+  draft: { label: '设计中', color: 'bg-gray-100 text-gray-800' },
   submitted: { label: '已提交', color: 'bg-blue-100 text-blue-800' },
-  confirmed: { label: '已确认', color: 'bg-green-100 text-green-800' },
+}
+
+const orderStatusConfig: Record<string, { label: string; color: string }> = {
+  pending_dispatch: { label: '待派单', color: 'bg-gray-100 text-gray-800' },
+  pending_design: { label: '待接单', color: 'bg-yellow-100 text-yellow-800' },
+  designing: { label: '设计中', color: 'bg-purple-100 text-purple-800' },
+  in_design: { label: '设计中', color: 'bg-purple-100 text-purple-800' },
+  pending_order: { label: '待下单', color: 'bg-orange-100 text-orange-800' },
+  pending_payment: { label: '待打款', color: 'bg-red-100 text-red-800' },
+  pending_shipment: { label: '待出货', color: 'bg-indigo-100 text-indigo-800' },
+  in_install: { label: '安装中', color: 'bg-cyan-100 text-cyan-800' },
+  completed: { label: '已完结', color: 'bg-green-100 text-green-800' },
 }
 
 export function DesignList({ designs }: { designs: any[] }) {
@@ -34,10 +45,11 @@ export function DesignList({ designs }: { designs: any[] }) {
       setDeleteError('删除失败')
     }
   }
+
   if (designs.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
-        暂无设计方案
+        暂无设计任务
       </div>
     )
   }
@@ -47,35 +59,36 @@ export function DesignList({ designs }: { designs: any[] }) {
       {deleteError && (
         <div className="text-red-600 text-sm mb-2">{deleteError}</div>
       )}
-      {designs.map((design) => (
-        <Card key={design.id} className="p-4 hover:bg-gray-50 transition-colors">
-          <div className="flex items-center justify-between">
-            <Link href={`/designs/${design.id}`} className="flex-1">
-              <h3 className="font-medium">{design.title}</h3>
-              <p className="text-sm text-muted-foreground">
-                客户：{design.customers?.name || '未知'} {design.customers?.house_type ? `(${design.customers.house_type})` : ''} · {design.total_area ? `${design.total_area}㎡` : ''}
-                {design.orders?.order_no && ` · 订单号：${design.orders.order_no}`}
-              </p>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Badge className={statusConfig[design.status as keyof typeof statusConfig]?.color}>
-                {statusConfig[design.status as keyof typeof statusConfig]?.label}
-              </Badge>
-              <button
-                onClick={() => handleDeleteDesign(design.id)}
-                disabled={design.hasInstallation}
-                title={design.hasInstallation ? '还有安装记录，无法删除' : '删除'}
-                className={`text-sm ${design.hasInstallation
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : 'text-red-600 hover:text-red-700'
-                }`}
-              >
-                删除
-              </button>
+      {designs.map((design) => {
+        const order = design.orders
+        const orderStatus = order?.status
+        const config = orderStatusConfig[orderStatus] || { label: orderStatus || '未知', color: 'bg-gray-100 text-gray-800' }
+
+        return (
+          <Card key={design.id} className="p-4 hover:bg-gray-50 transition-colors">
+            <div className="flex items-center justify-between">
+              <Link href={`/designs/${design.id}`} className="flex-1">
+                <h3 className="font-medium">{design.title}</h3>
+                <p className="text-sm text-muted-foreground">
+                  订单号：{order?.order_no || '无'} · 客户：{order?.customer_name || '未知'}
+                  {design.total_area ? ` · ${design.total_area}㎡` : ''}
+                </p>
+              </Link>
+              <div className="flex items-center gap-2">
+                <Badge className={config.color}>
+                  {config.label}
+                </Badge>
+                <button
+                  onClick={() => handleDeleteDesign(design.id)}
+                  className="text-sm text-red-600 hover:text-red-700"
+                >
+                  删除
+                </button>
+              </div>
             </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        )
+      })}
     </div>
   )
 }

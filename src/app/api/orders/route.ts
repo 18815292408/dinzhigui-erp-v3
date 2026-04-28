@@ -67,44 +67,64 @@ export async function POST(request: Request) {
     house_type, house_area, signed_amount
   } = body
 
-  // Generate order number: DD-YYYYMMDD-NNN
+  if (!customer_name || !customer_name.trim()) {
+    return NextResponse.json({ error: '客户姓名不能为空' }, { status: 400 })
+  }
+
+  // 生成订单号: DD-YYYYMMDD-NNN，带竞态条件重试
   const today = new Date()
   const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
-  const { data: lastOrder } = await adminSupabase
-    .from('orders')
-    .select('order_no')
-    .like('order_no', `DD-${dateStr}-%`)
-    .order('order_no', { ascending: false })
-    .limit(1)
+  const MAX_RETRIES = 5
 
-  let seq = 1
-  if (lastOrder && lastOrder[0]?.order_no) {
-    const lastSeq = parseInt(lastOrder[0].order_no.split('-')[2])
-    seq = lastSeq + 1
-  }
-  const orderNo = `DD-${dateStr}-${String(seq).padStart(3, '0')}`
+  let lastError: any = null
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const { data: lastOrder } = await adminSupabase
+      .from('orders')
+      .select('order_no')
+      .like('order_no', `DD-${dateStr}-%`)
+      .order('order_no', { ascending: false })
+      .limit(1)
 
-  const { data, error } = await adminSupabase
-    .from('orders')
-    .insert({
-      organization_id: user.organization_id,
-      order_no: orderNo,
-      customer_name,
-      customer_phone,
-      customer_address,
-      house_type,
-      house_area,
-      signed_amount: signed_amount || null,
-      created_by: user.id,
-      status: 'pending_dispatch'
-    })
-    .select()
-    .single()
+    let seq = 1
+    if (lastOrder && lastOrder[0]?.order_no) {
+      const lastSeq = parseInt(lastOrder[0].order_no.split('-')[2])
+      if (!Number.isNaN(lastSeq)) {
+        seq = lastSeq + 1
+      }
+    }
+    const orderNo = `DD-${dateStr}-${String(seq).padStart(3, '0')}`
 
-  if (error) {
+    const { data, error } = await adminSupabase
+      .from('orders')
+      .insert({
+        organization_id: user.organization_id,
+        order_no: orderNo,
+        customer_name,
+        customer_phone,
+        customer_address,
+        house_type,
+        house_area,
+        signed_amount: signed_amount || null,
+        created_by: user.id,
+        status: 'pending_dispatch'
+      })
+      .select()
+      .single()
+
+    if (!error) {
+      return NextResponse.json(data, { status: 201 })
+    }
+
+    // 唯一约束冲突（code 23505），重试
+    if (error.code === '23505') {
+      lastError = error
+      continue
+    }
+
     console.error('Create order error:', error)
     return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 })
   }
 
-  return NextResponse.json(data, { status: 201 })
+  console.error('Create order failed after retries:', lastError)
+  return NextResponse.json({ error: '订单号生成失败，请稍后重试' }, { status: 500 })
 }

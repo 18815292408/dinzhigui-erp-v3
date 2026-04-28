@@ -10,8 +10,13 @@ interface OrderAmountEditorProps {
 
 export function OrderAmountEditor({ orderId, signedAmount, finalOrderAmount }: OrderAmountEditorProps) {
   const [editing, setEditing] = useState(false)
-  const [signedInput, setSignedInput] = useState(signedAmount?.toString() || '')
-  const [finalInput, setFinalInput] = useState(finalOrderAmount?.toString() || '')
+  // 数据库存的是「元」，界面用「万元」显示和输入
+  function toWan(value: number | null) {
+    if (!value || value === 0) return ''
+    return (value / 10000).toString()
+  }
+  const [signedInput, setSignedInput] = useState(toWan(signedAmount))
+  const [finalInput, setFinalInput] = useState(toWan(finalOrderAmount))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,8 +29,9 @@ export function OrderAmountEditor({ orderId, signedAmount, finalOrderAmount }: O
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          signed_amount: signedInput ? parseFloat(signedInput) : null,
-          final_order_amount: finalInput ? parseFloat(finalInput) : null
+          // 界面输入的是「万元」，数据库存「元」
+          signed_amount: signedInput ? parseFloat(signedInput) * 10000 : null,
+          final_order_amount: finalInput ? parseFloat(finalInput) * 10000 : null
         })
       })
       if (!res.ok) {
@@ -77,8 +83,8 @@ export function OrderAmountEditor({ orderId, signedAmount, finalOrderAmount }: O
           </button>
           <button
             onClick={() => {
-              setSignedInput(signedAmount?.toString() || '')
-              setFinalInput(finalOrderAmount?.toString() || '')
+              setSignedInput(toWan(signedAmount))
+              setFinalInput(toWan(finalOrderAmount))
               setEditing(false)
             }}
             className="px-3 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300"
@@ -96,7 +102,7 @@ export function OrderAmountEditor({ orderId, signedAmount, finalOrderAmount }: O
         <div>
           <span className="text-muted-foreground">签单金额：</span>
           <span className={signedAmount ? 'text-green-600 font-medium' : 'text-gray-400'}>
-            {signedAmount ? `¥${signedAmount}万` : '未填写'}
+            {signedAmount ? `¥${(signedAmount / 10000).toFixed(2)}万` : '未填写'}
           </span>
         </div>
         <button
@@ -110,7 +116,7 @@ export function OrderAmountEditor({ orderId, signedAmount, finalOrderAmount }: O
         <div>
           <span className="text-muted-foreground">最终下单销售额：</span>
           <span className={finalOrderAmount ? 'text-green-600 font-medium' : 'text-gray-400'}>
-            {finalOrderAmount ? `¥${finalOrderAmount}万` : '未填写'}
+            {finalOrderAmount ? `¥${(finalOrderAmount / 10000).toFixed(2)}万` : '未填写'}
           </span>
         </div>
         <button

@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-const ROLE_LIMITS = { manager: 5, sales: 3, designer: 3, installer: 3 }
-const roleLabels: Record<string, string> = { manager: '店长', sales: '导购', designer: '设计师', installer: '安装/售后' }
+const ROLE_LIMITS = { manager: 1, sales: 3, designer: 3, installer: 3 }
+const roleLabels: Record<string, string> = { owner: '老板', manager: '店长', sales: '导购', designer: '设计师', installer: '安装/售后' }
 
 interface Props {
   currentUserRole: string
@@ -22,7 +22,7 @@ export function UserForm({ currentUserRole, organizationId, isManagerCreation = 
     phone: '',
     password: '',
     display_name: '',
-    role: isManagerCreation ? 'manager' : 'sales',
+    role: isManagerCreation ? 'owner' : 'sales',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -65,8 +65,8 @@ export function UserForm({ currentUserRole, organizationId, isManagerCreation = 
   // Build role options based on current user role
   // Manager creation only allowed via isManagerCreation flag (admin panel)
   const roleOptions = isManagerCreation
-    ? ['manager']
-    : ['sales', 'designer', 'installer']
+    ? ['owner']
+    : ['manager', 'sales', 'designer', 'installer']
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

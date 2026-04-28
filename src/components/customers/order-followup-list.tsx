@@ -23,6 +23,7 @@ const STAGE_LABELS: Record<string, string> = {
   pending_dispatch: '待派单',
   pending_design: '待接单',
   designing: '设计中',
+  in_design: '设计中',
   pending_order: '待下单',
   pending_payment: '待打款',
   pending_shipment: '待出货',
@@ -34,6 +35,7 @@ const STAGE_COLORS: Record<string, string> = {
   pending_dispatch: 'bg-gray-100 text-gray-700',
   pending_design: 'bg-orange-100 text-orange-700',
   designing: 'bg-blue-100 text-blue-700',
+  in_design: 'bg-blue-100 text-blue-700',
   pending_order: 'bg-purple-100 text-purple-700',
   pending_payment: 'bg-yellow-100 text-yellow-700',
   pending_shipment: 'bg-cyan-100 text-cyan-700',
@@ -75,7 +77,7 @@ export function OrderFollowupList({ customers }: { customers: CustomerWithOrders
                   </span>
                   {order.signed_amount && (
                     <span className="text-green-600 font-medium">
-                      签单: ¥{order.signed_amount}万
+                      签单: ¥{(order.signed_amount / 10000).toFixed(1)}万
                     </span>
                   )}
                 </div>

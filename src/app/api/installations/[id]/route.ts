@@ -67,28 +67,21 @@ export async function PUT(
   const currentStatus = current.status
 
   // 工作流程校验
-  // 1. 待安装 → 进行中：需要设置预约日期
-  if (currentStatus === 'pending' && newStatus === 'in_progress') {
-    if (!body.scheduled_date) {
-      return NextResponse.json({ error: '开始安装前必须设置预约日期' }, { status: 400 })
-    }
-  }
-
-  // 2. 进行中 → 已完成：需要填写安装反馈
+  // 1. 进行中 → 已完成：需要填写安装反馈
   if (currentStatus === 'in_progress' && newStatus === 'completed') {
     if (!body.feedback) {
       return NextResponse.json({ error: '完成安装前必须填写安装反馈' }, { status: 400 })
     }
   }
 
-  // 3. 不能从已完成或已取消改回其他状态
+  // 2. 不能从已完成或已取消改回其他状态
   if ((currentStatus === 'completed' || currentStatus === 'cancelled') && newStatus !== currentStatus) {
     return NextResponse.json({ error: '已完成或已取消的安装单不能更改状态' }, { status: 400 })
   }
 
-  // 4. 不能跳过状态（pending不能直接到completed）
+  // 3. 不能跳过状态（pending不能直接到completed，但允许通过确认到货直接跳到进行中）
   const validFlows: Record<string, string[]> = {
-    pending: ['in_progress', 'cancelled'],
+    pending: ['in_progress', 'completed', 'cancelled'],
     in_progress: ['completed', 'cancelled'],
   }
   if (newStatus !== currentStatus && !validFlows[currentStatus]?.includes(newStatus)) {
@@ -188,8 +181,7 @@ export async function DELETE(
     .delete()
     .eq('id', params.id)
     .eq('organization_id', user.organization_id)
-    .select('id', { count: 'exact' })
-    .single()
+    .select('id')
 
   if (error) {
     return NextResponse.json({ error: '删除失败' }, { status: 500 })

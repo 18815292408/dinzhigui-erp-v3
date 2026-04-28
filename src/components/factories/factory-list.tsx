@@ -71,12 +71,18 @@ export function FactoryList({ initialFactories, userRole }: FactoryListProps) {
 
   const handleDelete = async (id: string) => {
     setIsSubmitting(true)
-    const { error } = await supabase.from('factories').delete().eq('id', id)
-
-    if (error) {
-      alert('删除失败：' + error.message)
-    } else {
+    try {
+      const res = await fetch(`/api/factories/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '删除失败')
+      }
       await fetchFactories()
+    } catch (err: any) {
+      alert('删除失败：' + err.message)
     }
     setDeleteConfirmId(null)
     setIsSubmitting(false)

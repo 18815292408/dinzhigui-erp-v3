@@ -1,45 +1,75 @@
-import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const adminSupabase = await createAdminClient()
   const orderId = params.id
 
-  const body = await request.json()
-  const { final_order_amount } = body
+  let final_order_amount: number | undefined
+  try {
+    const body = await request.json()
+    final_order_amount = body.final_order_amount
+  } catch {}
 
   const updates: Record<string, unknown> = {
     status: 'pending_order',
     updated_at: new Date().toISOString()
   }
-  if (final_order_amount) {
-    updates.final_order_amount = parseFloat(final_order_amount)
+  if (final_order_amount != null) {
+    updates.final_order_amount = parseFloat(String(final_order_amount))
   }
 
-  const { data: order, error } = await supabase
+  // 只有 owner/manager/designer 可以操作
+  if (!['owner', 'manager', 'designer'].includes(user.role)) {
+    return NextResponse.json({ error: '无权操作' }, { status: 403 })
+  }
+
+  // designer 只能操作分配给自己的订单
+  let query = adminSupabase
     .from('orders')
     .update(updates)
     .eq('id', orderId)
-    .eq('assigned_designer', user.id)
     .eq('status', 'designing')
-    .select()
-    .single()
+
+  if (user.role === 'designer') {
+    query = query.eq('assigned_designer', user.id)
+  }
+
+  const { data: order, error } = await query.select().single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  if (!order) {
+    return NextResponse.json({ error: '订单不存在或无权操作' }, { status: 404 })
+  }
+
+  // 同步更新关联 design 的状态为 submitted
+  await adminSupabase
+    .from('designs')
+    .update({ status: 'submitted', updated_at: new Date().toISOString() })
+    .eq('order_id', orderId)
+
   if (order.created_by) {
-    await supabase.from('notifications').insert({
+    await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: order.created_by,
       type: 'design_submitted',

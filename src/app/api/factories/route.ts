@@ -1,24 +1,27 @@
-import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 export async function GET() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single()
+  const adminSupabase = await createAdminClient()
 
-  const { data, error } = await supabase
+  const { data, error } = await adminSupabase
     .from('factories')
     .select('*')
-    .eq('organization_id', userData?.organization_id)
+    .eq('organization_id', user.organization_id)
     .order('name')
 
   if (error) {
@@ -29,30 +32,31 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('organization_id, role')
-    .eq('id', user.id)
-    .single()
-
-  if (!['owner', 'manager'].includes(userData?.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!['owner', 'manager'].includes(user.role)) {
+    return NextResponse.json({ error: '无权操作' }, { status: 403 })
   }
+
+  const adminSupabase = await createAdminClient()
 
   const body = await request.json()
   const { name, contact_name, contact_phone, address } = body
 
-  const { data, error } = await supabase
+  const { data, error } = await adminSupabase
     .from('factories')
     .insert({
-      organization_id: userData?.organization_id,
+      organization_id: user.organization_id,
       name,
       contact_name,
       contact_phone,

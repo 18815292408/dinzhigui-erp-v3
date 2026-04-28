@@ -1,9 +1,10 @@
 import { cookies } from 'next/headers'
-import { InstallationList } from '@/components/installations/installation-list'
+import { CompletedOrderList } from '@/components/orders/completed-order-list'
 import { createAdminClient } from '@/lib/supabase/server'
+import { COMPLETED_ORDER_STATUS } from '@/lib/order-workflow'
 import { parseSessionUser } from '@/lib/types'
 
-async function getCompletedInstallations() {
+async function getCompletedOrders() {
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')
 
@@ -13,38 +14,48 @@ async function getCompletedInstallations() {
   if (!user) return []
 
   const adminSupabase = await createAdminClient()
-  // 只获取已完成的安装单（已完成、已取消）
-  const { data } = await adminSupabase
-    .from('installations')
-    .select(`
-      *,
-      customers(id, name, phone, house_type),
-      designs(id, title, final_price)
-    `)
+  const { data: orders } = await adminSupabase
+    .from('orders')
+    .select('*')
     .eq('organization_id', user.organization_id)
-    .in('status', ['completed', 'cancelled'])
-    .order('updated_at', { ascending: false })
+    .eq('status', COMPLETED_ORDER_STATUS)
+    .order('completed_at', { ascending: false })
 
-  return data || []
+  const orderIds = (orders || []).map((order: any) => order.id)
+  if (orderIds.length === 0) return []
+
+  const [{ data: designs }, { data: installations }] = await Promise.all([
+    adminSupabase
+      .from('designs')
+      .select('id, order_id, title, room_count, total_area, final_price, price')
+      .in('order_id', orderIds),
+    adminSupabase
+      .from('installations')
+      .select('id, order_id, status, completed_at, feedback')
+      .in('order_id', orderIds),
+  ])
+
+  const designByOrderId = new Map((designs || []).map((design: any) => [design.order_id, design]))
+  const installationByOrderId = new Map((installations || []).map((installation: any) => [installation.order_id, installation]))
+
+  return (orders || []).map((order: any) => ({
+    ...order,
+    design: designByOrderId.get(order.id) || null,
+    installation: installationByOrderId.get(order.id) || null,
+  }))
 }
 
-export default async function CompletedInstallationsPage() {
-  const installations = await getCompletedInstallations()
+export default async function CompletedOrdersPage() {
+  const orders = await getCompletedOrders()
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">已完成订单</h1>
-        <p className="text-muted-foreground">查看已完成的安装订单</p>
+        <p className="text-muted-foreground">查看已归档的完成订单和客户信息</p>
       </div>
 
-      {installations.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          暂无已完成订单
-        </div>
-      ) : (
-        <InstallationList installations={installations} />
-      )}
+      <CompletedOrderList orders={orders} />
     </div>
   )
 }

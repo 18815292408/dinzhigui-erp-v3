@@ -1,22 +1,31 @@
-import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
+  if (!sessionCookie) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = parseSessionUser(sessionCookie.value)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const adminSupabase = await createAdminClient()
   const orderId = params.id
   const now = new Date()
   const archiveMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  const { data: order, error } = await supabase
+  // owner/manager 可以操作，installer 只能操作分配给自己的
+  let query = adminSupabase
     .from('orders')
     .update({
       status: 'completed',
@@ -26,17 +35,34 @@ export async function POST(
       updated_at: now.toISOString()
     })
     .eq('id', orderId)
-    .eq('assigned_installer', user.id)
     .eq('installation_status', 'installed')
-    .select()
-    .single()
+
+  if (user.role === 'installer') {
+    query = query.eq('assigned_installer', user.id)
+  }
+
+  const { data: order, error } = await query.select().single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  if (!order) {
+    return NextResponse.json({ error: '订单不存在或无权操作' }, { status: 404 })
+  }
+
+  await adminSupabase
+    .from('installations')
+    .update({
+      status: 'completed',
+      completed_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .eq('order_id', orderId)
+    .eq('organization_id', order.organization_id)
+
   if (order.created_by) {
-    await supabase.from('notifications').insert({
+    await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: order.created_by,
       type: 'order_completed',
@@ -48,14 +74,15 @@ export async function POST(
   }
 
   // 将客户的 has_active_order 设为 false
-  const adminSupabase = await createAdminClient()
-  await adminSupabase
-    .from('customers')
-    .update({
-      has_active_order: false,
-      order_stage: 'completed'
-    })
-    .eq('id', order.customer_id)
+  if (order.customer_name) {
+    await adminSupabase
+      .from('customers')
+      .update({
+        has_active_order: false,
+        order_stage: 'completed'
+      })
+      .eq('name', order.customer_name)
+  }
 
   return NextResponse.json({ ...order, archive_month: archiveMonth })
 }

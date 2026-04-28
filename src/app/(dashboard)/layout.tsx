@@ -3,21 +3,39 @@ import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { parseSessionUser } from '@/lib/types'
+import { createAdminClient } from '@/lib/supabase/server'
 
-// 从Cookie解析session
-async function getSession(): Promise<import('@/lib/types').SessionUser | null> {
-  try {
-    const cookieStore = await cookies()
-    const sessionCookie = cookieStore.get('session')
+// 从Cookie解析session并校验过期时间
+async function getSessionOrRedirect(): Promise<import('@/lib/types').SessionUser> {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
 
-    if (!sessionCookie) {
-      return null
-    }
-
-    return parseSessionUser(sessionCookie.value)
-  } catch {
-    return null
+  if (!sessionCookie) {
+    redirect('/login')
   }
+
+  const user = parseSessionUser(sessionCookie.value)
+  if (!user) {
+    redirect('/login')
+  }
+
+  // 检查账号是否已过期
+  const adminSupabase = await createAdminClient()
+  const { data: profile } = await adminSupabase
+    .from('users')
+    .select('expires_at')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.expires_at) {
+    const expiresAt = new Date(profile.expires_at)
+    if (expiresAt < new Date()) {
+      // 清除session并重定向到登录页
+      redirect('/login')
+    }
+  }
+
+  return user
 }
 
 export default async function DashboardLayout({
@@ -25,15 +43,11 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const user = await getSession()
-
-  if (!user) {
-    redirect('/login')
-  }
+  const user = await getSessionOrRedirect()
 
   return (
     <div className="min-h-screen bg-apple-gray-50">
-      <Sidebar userRole={user.role} />
+      <Sidebar userRole={user.role} userEmail={user.email} />
       <div className="pl-[280px]">
         <Header userName={user.name} userRole={user.role} />
         <main className="p-6">{children}</main>

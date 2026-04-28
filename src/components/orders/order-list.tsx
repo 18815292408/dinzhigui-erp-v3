@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { OrderCard } from './order-card'
 import { Order } from '@/lib/types'
 
@@ -20,7 +19,6 @@ export function OrderList() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filter, setFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
     fetchOrders()
@@ -28,12 +26,17 @@ export function OrderList() {
 
   const fetchOrders = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setOrders(data || [])
-    setLoading(false)
+    try {
+      const res = await fetch('/api/orders', { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setOrders(data || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch orders:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredOrders = filter === 'all'

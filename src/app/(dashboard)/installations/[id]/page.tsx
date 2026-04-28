@@ -2,8 +2,10 @@ import { cookies } from 'next/headers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { InstallationFeedback } from '@/components/installations/installation-feedback'
 import { BackButton } from '@/components/ui/back-button'
+import { buildInstallationCardView } from '@/lib/order-workflow'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
+import { formatMoney } from '@/lib/format-amount'
 
 async function getInstallation(id: string) {
   const cookieStore = await cookies()
@@ -16,13 +18,13 @@ async function getInstallation(id: string) {
 
   const adminSupabase = await createAdminClient()
 
-  // Fetch installation with related design and customer
   const { data } = await adminSupabase
     .from('installations')
     .select(`
       *,
       customers(id, name, phone, house_type),
-      designs(id, title, room_count, total_area, final_price, description, cad_file, cad_file_url, kujiale_link)
+      designs(id, title, room_count, total_area, final_price, price, description, cad_file, cad_file_url, kujiale_link),
+      orders(id, order_no, estimated_shipment_date, assigned_installer, installation_status, customer_name, customer_phone, house_type)
     `)
     .eq('id', id)
     .eq('organization_id', user.organization_id)
@@ -39,7 +41,6 @@ const statusLabels: Record<string, string> = {
 }
 
 export default async function InstallationDetailPage({ params }: { params: { id: string } }) {
-  // Validate UUID
   const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!isValidUUID.test(params.id)) {
     return <div className="p-6">无效的安装单ID</div>
@@ -53,25 +54,28 @@ export default async function InstallationDetailPage({ params }: { params: { id:
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')
   const user = sessionCookie ? parseSessionUser(sessionCookie.value) : null
-  // 只有店长和管理员可以更新安装单状态
-  const canEdit = user && ['owner', 'manager'].includes(user.role)
-  // 根据状态决定返回哪个列表
+  const isAssignedInstaller = user?.id === installation.assigned_to
+  const canEdit = Boolean(user && (['owner', 'manager'].includes(user.role) || isAssignedInstaller))
   const backHref = installation.status === 'completed' || installation.status === 'cancelled'
     ? '/completed-orders'
     : '/installations'
   const backLabel = installation.status === 'completed' || installation.status === 'cancelled'
     ? '返回已完成订单'
     : '返回安装列表'
+  const card = buildInstallationCardView({
+    customer: installation.customers,
+    design: installation.designs,
+    order: installation.orders,
+  })
 
   return (
     <div className="space-y-6">
       <div>
         <BackButton href={backHref} label={backLabel} />
         <h1 className="text-2xl font-semibold mt-2">安装单详情</h1>
-        <p className="text-muted-foreground">客户：{installation.customers?.name || '未知'}</p>
+        <p className="text-muted-foreground">客户：{card.customerName || '未知'}</p>
       </div>
 
-      {/* 客户信息 */}
       <Card>
         <CardHeader>
           <CardTitle>客户信息</CardTitle>
@@ -80,21 +84,20 @@ export default async function InstallationDetailPage({ params }: { params: { id:
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">客户姓名：</span>
-              {installation.customers?.name || '未知'}
+              {card.customerName || '未知'}
             </div>
             <div>
               <span className="text-muted-foreground">联系电话：</span>
-              {installation.customers?.phone || '无'}
+              {card.customerPhone || '无'}
             </div>
             <div>
               <span className="text-muted-foreground">房型：</span>
-              {installation.customers?.house_type || '未知'}
+              {card.houseType || '未知'}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* 方案信息 */}
       {installation.designs && (
         <Card>
           <CardHeader>
@@ -104,11 +107,11 @@ export default async function InstallationDetailPage({ params }: { params: { id:
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">方案名称：</span>
-                {installation.designs.title || '无'}
+                {card.designTitle || '无'}
               </div>
               <div>
                 <span className="text-muted-foreground">房间数量：</span>
-                {installation.designs.room_count ? `${installation.designs.room_count}室` : '未知'}
+                {card.roomCount ? `${card.roomCount}室` : '未知'}
               </div>
               <div>
                 <span className="text-muted-foreground">总面积：</span>
@@ -116,7 +119,7 @@ export default async function InstallationDetailPage({ params }: { params: { id:
               </div>
               <div>
                 <span className="text-muted-foreground">成交价：</span>
-                {installation.designs.final_price ? `¥${installation.designs.final_price.toLocaleString()}` : '待定'}
+                {formatMoney(card.finalPrice)}
               </div>
             </div>
             {installation.designs.description && (
@@ -151,7 +154,6 @@ export default async function InstallationDetailPage({ params }: { params: { id:
         </Card>
       )}
 
-      {/* 安装信息 */}
       <Card>
         <CardHeader>
           <CardTitle>安装信息</CardTitle>
@@ -159,8 +161,16 @@ export default async function InstallationDetailPage({ params }: { params: { id:
         <CardContent className="space-y-2">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
+              <span className="text-muted-foreground">关联订单号：</span>
+              {card.orderNo || '无'}
+            </div>
+            <div>
               <span className="text-muted-foreground">预约日期：</span>
               {installation.scheduled_date || '待定'}
+            </div>
+            <div>
+              <span className="text-muted-foreground">预计出货日期：</span>
+              {installation.orders?.estimated_shipment_date || '待填写'}
             </div>
             <div>
               <span className="text-muted-foreground">当前状态：</span>
@@ -181,14 +191,13 @@ export default async function InstallationDetailPage({ params }: { params: { id:
           <CardTitle>更新状态</CardTitle>
         </CardHeader>
         <CardContent>
-          {canEdit ? (
-            <InstallationFeedback
-              installationId={installation.id}
-              currentStatus={installation.status}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">无编辑权限</p>
-          )}
+          <InstallationFeedback
+            installationId={installation.id}
+            orderId={installation.order_id}
+            installationStatus={installation.orders?.installation_status || 'pending_ship'}
+            estimatedShipmentDate={installation.orders?.estimated_shipment_date || null}
+            canEdit={canEdit}
+          />
         </CardContent>
       </Card>
     </div>

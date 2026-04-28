@@ -10,6 +10,7 @@ interface Notification {
   title: string
   summary: string
   priority: string
+  is_read: boolean
   order?: { id: string; customer_name: string; order_no: string }
 }
 

@@ -1,78 +1,61 @@
-// AI Dashboard Analysis - DeepSeek powered insights
+// AI Dashboard Analysis - 基于订单流程的运营分析
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
 
-interface CustomerData {
-  id: string
-  name: string
-  phone: string | null
-  house_type: string | null
-  requirements: string | null
-  estimated_price: number | null
-  follow_ups: any
-  created_at: string
+const STAGE_LABEL: Record<string, string> = {
+  pending_dispatch: '待派单',
+  pending_design: '待接单',
+  designing: '设计中',
+  pending_order: '待下单',
+  pending_payment: '待打款',
+  pending_shipment: '待出货',
+  in_install: '安装中',
+  completed: '已完成',
 }
 
-interface DesignData {
+const STAGE_BOTTLENECK_DAYS: Record<string, number> = {
+  pending_dispatch: 1,
+  pending_design: 1,
+  designing: 7,
+  pending_order: 3,
+  pending_payment: 2,
+  pending_shipment: 1,
+  in_install: 7,
+}
+
+const STAGE_RESPONSIBLE: Record<string, string> = {
+  pending_dispatch: '销售/店长',
+  pending_design: '设计师',
+  designing: '设计师',
+  pending_order: '设计师',
+  pending_payment: '店长/老板',
+  pending_shipment: '店长/安装师傅',
+  in_install: '安装师傅',
+}
+
+interface OrderForAnalysis {
   id: string
-  customer_id: string | null
+  order_no: string
+  customer_name: string
   status: string
-  title: string | null
-  description: string | null
-  room_count: number | null
-  total_area: number | null
-  final_price: number | null
-  price: number | null
+  stage_label: string
+  signed_amount: number
+  final_order_amount: number
+  amount: number
+  sales_name: string
+  designer_name: string
+  installer_name: string
   created_at: string
-}
-
-interface InstallationData {
-  id: string
-  customer_id: string | null
-  design_id: string | null
-  status: string
-  scheduled_date: string | null
-  feedback: string | null
-  created_at: string
-}
-
-interface AnalysisCustomer {
-  id: string
-  name: string
-  phone: string | null
-  house_type: string | null
-  requirements: string | null
-  estimated_price: number | null
-  created_at: string
+  updated_at: string
+  completed_at: string | null
+  days_in_stage: number
   days_since_created: number
-  last_followup_date: string | null
-  last_followup_content: string | null
-  days_since_last_followup: number | null
-  follow_ups_count: number
-  follow_ups_history: Array<{ content: string; date: string }>
-  has_design: boolean
-  design_status: string | null
-  design_count: number
-  design_details: Array<{
-    title: string | null
-    description: string | null
-    room_count: number | null
-    total_area: number | null
-    price: number | null
-    status: string
-  }>
-  has_installation: boolean
-  installation_status: string | null
-  installation_count: number
-  installation_details: Array<{
-    scheduled_date: string | null
-    feedback: string | null
-    status: string
-  }>
+  bottleneck_days: number
+  is_bottleneck: boolean
 }
 
-// GET: Retrieve latest analysis or history
+// GET: 获取最近一次分析结果或历史记录
 export async function GET(request: NextRequest) {
   const sessionCookie = request.cookies.get('session')
   if (!sessionCookie) {
@@ -90,7 +73,6 @@ export async function GET(request: NextRequest) {
   const history = searchParams.get('history') === 'true'
 
   if (history) {
-    // Get all history (last 90 days by default)
     const days = parseInt(searchParams.get('days') || '90')
     const dateLimit = new Date()
     dateLimit.setDate(dateLimit.getDate() - days)
@@ -111,7 +93,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: data || [] })
   }
 
-  // Get latest analysis from last 7 days
+  // 获取最近 7 天的分析
   const weekAgo = new Date()
   weekAgo.setDate(weekAgo.getDate() - 7)
 
@@ -137,15 +119,14 @@ export async function GET(request: NextRequest) {
     data: {
       insights: latest.insights,
       summary: latest.summary,
-      total_customers: latest.total_customers,
+      total_orders: latest.total_customers, // 兼容旧字段名
       analyzed_at: latest.created_at,
     }
   })
 }
 
-// POST: Run new analysis
+// POST: 运行新的 AI 分析
 export async function POST(request: NextRequest) {
-  // 1. Auth check
   const sessionCookie = request.cookies.get('session')
   if (!sessionCookie) {
     return NextResponse.json({ error: '请先登录' }, { status: 401 })
@@ -156,190 +137,192 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '登录已过期，请重新登录' }, { status: 401 })
   }
 
-  // 2. Only manager and owner can run analysis
   if (!['owner', 'manager'].includes(user.role)) {
     return NextResponse.json({ error: '只有店长或管理员可以运行AI分析' }, { status: 403 })
   }
 
-  // 3. Fetch all organization data
   const adminSupabase = await createAdminClient()
   const orgId = user.organization_id
 
-  const [customersResult, designsResult, installationsResult] = await Promise.all([
-    adminSupabase
-      .from('customers')
-      .select('id, name, phone, house_type, requirements, estimated_price, follow_ups, created_at')
-      .eq('organization_id', orgId),
-    adminSupabase
-      .from('designs')
-      .select('id, customer_id, status, title, description, room_count, total_area, final_price, price, created_at')
-      .eq('organization_id', orgId),
-    adminSupabase
-      .from('installations')
-      .select('id, customer_id, design_id, status, scheduled_date, feedback, created_at')
-      .eq('organization_id', orgId),
-  ])
+  // 1. 查询所有订单
+  const { data: orders } = await adminSupabase
+    .from('orders')
+    .select(`
+      id, order_no, customer_name, status,
+      signed_amount, final_order_amount,
+      created_by, assigned_designer, assigned_installer,
+      created_at, updated_at, completed_at
+    `)
+    .eq('organization_id', orgId)
 
-  console.log('[AI Analysis] Query results:', {
-    customersCount: customersResult.data?.length || 0,
-    designsCount: designsResult.data?.length || 0,
-    installationsCount: installationsResult.data?.length || 0,
-    customersError: customersResult.error,
-    designsError: designsResult.error,
-    installationsError: installationsResult.error,
-  })
+  if (!orders || orders.length === 0) {
+    return NextResponse.json({ error: '暂无订单数据，无法分析' }, { status: 400 })
+  }
 
-  // Debug: 打印installations原始数据
-  console.log('[AI Analysis] Installations raw data:', JSON.stringify(installationsResult.data, null, 2))
+  // 2. 收集用户 ID 并查询
+  const userIds = new Set<string>()
+  for (const o of orders) {
+    if (o.created_by) userIds.add(o.created_by)
+    if (o.assigned_designer) userIds.add(o.assigned_designer)
+    if (o.assigned_installer) userIds.add(o.assigned_installer)
+  }
 
-  const customers: CustomerData[] = customersResult.data || []
-  const designs: DesignData[] = designsResult.data || []
-  const installations: InstallationData[] = installationsResult.data || []
+  const { data: users } = await adminSupabase
+    .from('users')
+    .select('id, display_name, email, phone')
+    .in('id', Array.from(userIds))
 
-  // 4. Process customer data for analysis
+  const userNameMap = new Map((users || []).map(u => [
+    u.id,
+    u.display_name || u.email || u.phone || '未知',
+  ]))
+
+  // 3. 构建分析数据
   const now = new Date()
 
-  const customerAnalysisData: AnalysisCustomer[] = customers.map(c => {
-    let followUps: Array<{ content: string; date: string }> = []
-    try {
-      followUps = typeof c.follow_ups === 'string' ? JSON.parse(c.follow_ups) : (c.follow_ups || [])
-    } catch { }
+  const orderAnalysisData: OrderForAnalysis[] = orders
+    .map(o => {
+      const status = o.status || 'unknown'
+      const stageLabel = STAGE_LABEL[status] || status
+      const amount = Number(o.final_order_amount || o.signed_amount || 0)
+      const daysInStage = Math.floor(
+        (now.getTime() - new Date(o.updated_at || o.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      )
+      const daysSinceCreated = Math.floor(
+        (now.getTime() - new Date(o.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      )
+      const bottleneckDays = STAGE_BOTTLENECK_DAYS[status] || 999
 
-    // Sort follow-ups by date descending (newest first)
-    const sortedFollowUps = followUps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      return {
+        id: o.id,
+        order_no: o.order_no,
+        customer_name: o.customer_name || '未知',
+        status,
+        stage_label: stageLabel,
+        signed_amount: Number(o.signed_amount || 0),
+        final_order_amount: Number(o.final_order_amount || 0),
+        amount,
+        sales_name: o.created_by ? userNameMap.get(o.created_by) || '未指派' : '未指派',
+        designer_name: o.assigned_designer ? userNameMap.get(o.assigned_designer) || '未指派' : '未指派',
+        installer_name: o.assigned_installer ? userNameMap.get(o.assigned_installer) || '未指派' : '未指派',
+        created_at: o.created_at,
+        updated_at: o.updated_at || o.created_at,
+        completed_at: o.completed_at,
+        days_in_stage: daysInStage,
+        days_since_created: daysSinceCreated,
+        bottleneck_days: bottleneckDays,
+        is_bottleneck: status !== 'completed' && daysInStage > bottleneckDays,
+      }
+    })
 
-    const lastFollowUp = sortedFollowUps[0] || null
+  // 4. 统计摘要（预计算，帮助 AI 更准确）
+  const activeOrders = orderAnalysisData.filter(o => o.status !== 'completed')
+  const completedThisWeek = orderAnalysisData.filter(o => {
+    if (o.status !== 'completed' || !o.completed_at) return false
+    const d = new Date(o.completed_at)
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    return d >= weekAgo
+  })
+  const createdThisWeek = orderAnalysisData.filter(o => o.days_since_created <= 7)
+  const bottleneckOrders = orderAnalysisData.filter(o => o.is_bottleneck)
+  const totalPendingAmount = activeOrders.reduce((sum, o) => sum + o.amount, 0)
 
-    const daysSinceCreated = Math.floor((now.getTime() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))
-    const daysSinceLastFollowUp = lastFollowUp
-      ? Math.floor((now.getTime() - new Date(lastFollowUp.date).getTime()) / (1000 * 60 * 60 * 24))
-      : null
+  const summary = {
+    total_orders: orders.length,
+    active_orders: activeOrders.length,
+    completed_orders: orders.length - activeOrders.length,
+    completed_this_week: completedThisWeek.length,
+    created_this_week: createdThisWeek.length,
+    bottleneck_count: bottleneckOrders.length,
+    total_pending_amount: totalPendingAmount,
+    stage_distribution: {} as Record<string, number>,
+  }
 
-    const customerDesigns = designs.filter(d => d.customer_id === c.id)
-    const customerInstallations = installations.filter(i => i.customer_id === c.id)
+  for (const o of activeOrders) {
+    summary.stage_distribution[o.stage_label] =
+      (summary.stage_distribution[o.stage_label] || 0) + 1
+  }
 
-    // 过滤掉已完成订单的客户（设计方案已完成或安装已完成）
-    const hasCompletedDesign = customerDesigns.some(d => d.status === 'completed')
-    const hasCompletedInstallation = customerInstallations.some(i => i.status === 'completed')
-    if (hasCompletedDesign || hasCompletedInstallation) {
-      return null // 排除此客户
-    }
-
-    // 收集方案的详细信息
-    const designDetails = customerDesigns.map(d => ({
-      title: d.title,
-      description: d.description,
-      room_count: d.room_count,
-      total_area: d.total_area,
-      price: d.final_price || d.price,
-      status: d.status,
-    }))
-
-    // 收集安装的详细信息
-    const installationDetails = customerInstallations.map(i => ({
-      scheduled_date: i.scheduled_date,
-      feedback: i.feedback,
-      status: i.status,
-    }))
-
-    return {
-      id: c.id,
-      name: c.name,
-      phone: c.phone,
-      house_type: c.house_type,
-      requirements: c.requirements,
-      estimated_price: c.estimated_price,
-      created_at: c.created_at,
-      days_since_created: daysSinceCreated,
-      last_followup_date: lastFollowUp?.date || null,
-      last_followup_content: lastFollowUp?.content || null,
-      days_since_last_followup: daysSinceLastFollowUp,
-      follow_ups_count: sortedFollowUps.length,
-      follow_ups_history: sortedFollowUps.slice(0, 5),
-      has_design: customerDesigns.length > 0,
-      design_status: customerDesigns[0]?.status || null,
-      design_count: customerDesigns.length,
-      design_details: designDetails,
-      has_installation: customerInstallations.length > 0,
-      installation_status: customerInstallations[0]?.status || null,
-      installation_count: customerInstallations.length,
-      installation_details: installationDetails,
-    }
-  }).filter(c => c !== null) as AnalysisCustomer[]
-
-  // 5. Call DeepSeek API
+  // 5. 调用 DeepSeek API
   const deepseekApiKey = process.env.DEEPSEEK_API_KEY
   if (!deepseekApiKey || deepseekApiKey === 'your-deepseek-api-key') {
     return NextResponse.json({ error: 'DeepSeek API 未配置，请在环境变量中设置 DEEPSEEK_API_KEY' }, { status: 500 })
   }
 
-  const prompt = `你是一个全屋定制门店的AI运营助手。请分析以下客户数据，生成结构化的运营洞察。
+  const prompt = `你是一个全屋定制门店的AI运营助手。请分析以下订单流程数据，帮老板发现紧急问题和运营洞察。
 
-客户数据：
-${JSON.stringify(customerAnalysisData, null, 2)}
+## 门店数据摘要
+- 总订单数：${summary.total_orders}
+- 进行中订单：${summary.active_orders}
+- 已完成订单：${summary.completed_orders}
+- 本周新增：${summary.created_this_week}
+- 本周完成：${summary.completed_this_week}
+- 卡点订单数：${summary.bottleneck_count}
+- 各阶段待收款总额：${totalPendingAmount.toLocaleString('zh-CN')} 元
+- 各阶段分布：${JSON.stringify(summary.stage_distribution)}
 
-请仔细分析每个客户的完整数据，包括：
-- follow_ups_history: 最近的跟进记录（包含内容和时间）
-- follow_ups_count: 跟进总次数
-- intention_reason: AI分析理由
-- requirements: 客户需求描述
-- 跟进记录中的内容能反映客户的真实意向和需求变化
+## 订单流程说明
+全屋定制订单流程：待派单 → 待接单 → 设计中 → 待下单 → 待打款 → 待出货 → 安装中 → 已完成
 
-请按以下6个类别生成洞察（必须返回严格JSON格式）：
-1. **immediate_followup**: 需要立即跟进的客户（有重要跟进内容待处理，或超过7天未跟进）
-2. **risk_customers**: 风险客户（超过14天未跟进，或跟进记录显示以下任意高风险信号：意向下降、态度冷淡、价格异议、嫌贵、考虑别家、犹豫不决、有流失迹象）
-3. **ready_to_close**: 可以成交的客户（有已确认的设计方案，或跟进记录显示客户已确定意向）
-4. **silent_customers**: 沉默客户（有设计方案但超过30天无进展，或跟进记录显示长时间无互动）
-5. **new_customers**: 本周新客户（created_at显示是7天内新增的客户，即days_since_created <= 7的客户）
-6. **recommendations**: 门店运营建议（基于所有客户数据，给出2-4条具体可执行的建议，要结合跟进记录中的具体内容）
+各阶段含义和卡点阈值：
+- 待派单(>1天为卡点)：销售签单后等待分配设计师
+- 待接单(>1天为卡点)：设计师被分配后未接单
+- 设计中(>7天为卡点)：设计师出方案中
+- 待下单(>3天为卡点)：方案已确认，等待下单给工厂
+- 待打款(>2天为卡点)：工厂单已下，等待客户打款 — 这是老板最关心的资金回流阶段
+- 待出货(>1天为卡点)：款项已到，等待出货/指派安装
+- 安装中(>7天为卡点)：安装师傅正在安装
 
-【重要】风险信号识别规则：
-- "有点贵"/"价格高"/"贵" → 价格异议风险
-- "想定别家"/"考虑别家"/"看看别家"/"对比别家" → 竞品对比风险
-- "犹豫"/"再想想"/"考虑考虑"/"不确定" → 犹豫期风险
-- "不着急"/"不急着定"/"慢慢看" → 意向下降风险
-- 以上风险信号即使客户是今天才跟进的，也要归入risk_customers
-- 特别注意：只要跟进记录中出现价格异议、竞品对比、犹豫期任一信号，即使客户刚新增，也要归入风险客户
+## 全部订单明细
+${JSON.stringify(orderAnalysisData, null, 2)}
 
-每个类别的结构：
-- category: 类别标识
-- title: 中文标题（15字以内）
-- customers: 相关客户数组（recommendations类别除外）
-- recommendations: 建议数组（仅recommendations类别）
-- summary: 一句话总结（30字以内）
-- priority: high（紧急）/ medium（提醒）/ low（参考）
+## 分析要求
 
-返回格式（必须是可以直接JSON.parse的JSON字符串，不要有其他任何文字）：
+请按以下4个类别生成洞察，返回严格JSON格式：
+
+1. **bottleneck_orders**（流程卡点）- priority: high
+   找出所有 is_bottleneck=true 的订单，按阶段分组说明。每阶段列出卡住的订单号和客户名，说明卡了几天、谁负责。
+   title 示例：「待打款卡点 - X笔订单等待收款」
+
+2. **revenue_attention**（金额关注）- priority: high
+   - 各阶段卡了多少金额（特别是待打款阶段）
+   - 高金额订单（金额>=10000元）当前进度
+   - 本周预计可完成的订单金额
+   title 示例：「待打款阶段卡了 ¥XX - 需立即跟进」
+
+3. **weekly_pulse**（本周动态）- priority: medium
+   - 本周新增了哪些订单
+   - 本周完成了哪些订单
+   - 有没有阶段推进的好消息
+   title 示例：「本周新增X单，完成X单」
+
+4. **recommendations**（运营建议）- priority: high（这是最重要的输出）
+   基于以上全部数据，给出老板可立即执行的建议，不限制数量但每条都要有价值。每条建议要：
+   - 具体到订单号或人员
+   - 说明为什么紧急/重要
+   - 给出明确的行动方向
+   重点关注：催打款、清卡点、调配人力
+
+## 输出规范
+- 每个 insight 对象包含：category, title, summary（一句话，25字以内）, priority（high/medium/low）
+- bottleneck_orders 包含 orders 数组，每项：order_no, customer_name, stage_label, days_in_stage, amount, responsible
+- revenue_attention 包含 items 数组，每项：label（如"待打款阶段"）, amount, order_count, detail（如"共3笔，最大单笔¥8000"）
+- weekly_pulse 包含 items 数组，每项：label, detail
+- recommendations 包含 recommendations 字符串数组
+- 所有文字必须使用中文
+- 如果某类别没有数据，也要返回该类别，但内容说明"暂无"
+- 必须返回可直接 JSON.parse 的 JSON，不要 markdown 代码块
+
+返回格式：
 {
   "insights": [
-    {"category": "immediate_followup", "title": "立即跟进", "customers": [...], "summary": "...", "priority": "high"},
-    {"category": "risk_customers", "title": "风险客户", "customers": [...], "summary": "...", "priority": "high"},
-    {"category": "ready_to_close", "title": "即将成交", "customers": [...], "summary": "...", "priority": "medium"},
-    {"category": "silent_customers", "title": "沉默客户", "customers": [...], "summary": "...", "priority": "medium"},
-    {"category": "new_customers", "title": "本周新客", "customers": [...], "summary": "...", "priority": "low"},
-    {"category": "recommendations", "title": "运营建议", "recommendations": [...], "summary": "...", "priority": "low"}
+    {"category": "bottleneck_orders", "title": "...", "summary": "...", "priority": "high", "orders": [...]},
+    {"category": "revenue_attention", "title": "...", "summary": "...", "priority": "high", "items": [...]},
+    {"category": "weekly_pulse", "title": "...", "summary": "...", "priority": "medium", "items": [...]},
+    {"category": "recommendations", "title": "运营建议", "summary": "...", "priority": "low", "recommendations": [...]}
   ],
   "summary": "整体分析总结（50字以内）"
-}
-
-【重要】输出规范：
-- 所有文字必须使用中文，禁止出现英文字段名或英文单词（除了客户姓名拼音）
-- design_status字段值映射：draft=草稿，submitted=已提交，confirmed=已确认
-- installation_status字段值映射：pending=待处理，in_progress=进行中，completed=已完成，cancelled=已取消
-- recommendations中的客户名称必须使用真实姓名，不要用姓氏缩写
-- 每个recommendations建议要具体，结合跟进记录中的具体内容和客户情况，不要说"某客户"或"某个"
-- 必须返回严格JSON格式，不要有markdown代码块
-- 每个customer对象只需包含id, name, phone, days_since_last_followup, days_since_created, design_status字段
-- 如果某类别没有客户，返回空数组
-- recommendations类别没有customers字段，只有recommendations数组
-【重要】分类互斥规则：
-- risk_customers/immediate_followup/ready_to_close/silent_customers 这四个类别互斥，同一客户只能出现在其中一个类别
-- 分类优先级：risk_customers > immediate_followup > ready_to_close > silent_customers
-- 例如：某客户既是"即将成交"又有"风险信号"，则只归入risk_customers，不归入ready_to_close
-- **new_customers（本周新客）是独立维度**，不受互斥规则约束。即使客户已被归入risk/immediate/ready/silent之一，只要她是7天内新增的（days_since_created <= 7），就仍须同时出现在new_customers中
-- new_customers中的客户会与其他分类重复，这是正常的，因为new_customers是独立维度
-
-`
+}`
 
   try {
     const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -349,16 +332,16 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
         'Authorization': `Bearer ${deepseekApiKey}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         messages: [
           {
             role: 'system',
-            content: '你是一个专业的全屋定制门店运营顾问。请分析客户数据并给出可操作的建议。只返回JSON，不要有其他文字。所有输出必须使用中文，禁止出现英文字段名或英文单词（除了客户姓名拼音）。方案状态映射：draft=草稿，submitted=已提交，confirmed=已确认。安装状态映射：pending=待处理，in_progress=进行中，completed=已完成，cancelled=已取消。'
+            content: '你是一个专业的全屋定制门店运营顾问，擅长从订单流程数据中发现瓶颈和资金风险。你的分析直接给老板看，要抓重点、讲人话、给行动方案。只返回JSON，不要其他文字。所有输出必须使用中文。',
           },
           {
             role: 'user',
-            content: prompt
-          }
+            content: prompt,
+          },
         ],
         temperature: 0.3,
         response_format: { type: 'json_object' },
@@ -378,7 +361,6 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
       return NextResponse.json({ error: 'AI分析返回为空' }, { status: 500 })
     }
 
-    // Parse and validate the response
     let parsedResult: any
     try {
       parsedResult = JSON.parse(analysisContent)
@@ -389,26 +371,26 @@ ${JSON.stringify(customerAnalysisData, null, 2)}
 
     const analyzedAt = new Date().toISOString()
 
-    // 6. Save to database
+    // 6. 保存到数据库
     const { error: saveError } = await adminSupabase
       .from('dashboard_ai_analysis')
       .insert({
         organization_id: orgId,
         insights: parsedResult.insights,
         summary: parsedResult.summary,
-        total_customers: customers.length,
+        total_customers: orders.length,
         analyzed_by: user.id,
       })
 
     if (saveError) {
       console.error('Failed to save analysis:', saveError)
-      // Don't fail the whole request if save fails
     }
 
     return NextResponse.json({
-      ...parsedResult,
+      insights: parsedResult.insights,
+      summary: parsedResult.summary,
       analyzed_at: analyzedAt,
-      total_customers: customers.length,
+      total_orders: orders.length,
     })
   } catch (error) {
     console.error('Analysis error:', error)

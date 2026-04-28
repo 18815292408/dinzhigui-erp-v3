@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, forwardRef, useImperativeHandle } from 'react'
+import { wanToYuan, yuanToWan } from '@/lib/format-amount'
 
 interface Factory {
   id: string
@@ -10,7 +10,7 @@ interface Factory {
   contact_phone: string
 }
 
-interface FactoryRecord {
+export interface FactoryRecord {
   factory_id: string
   factory_name: string
   contact_name: string
@@ -18,20 +18,52 @@ interface FactoryRecord {
   amount: number
 }
 
-interface FactorySelectorProps {
-  onChange: (records: FactoryRecord[]) => void
-  value: FactoryRecord[]
+export interface FactorySelectorHandle {
+  getSelected: () => FactoryRecord[]
 }
 
-export function FactorySelector({ onChange, value }: FactorySelectorProps) {
+interface FactorySelectorProps {
+  /** 初始值 */
+  value: FactoryRecord[]
+  /** 选中工厂后回调（仅更新内部状态，不自动提交） */
+  onChange?: (selected: FactoryRecord[]) => void
+  /** 是否显示"确认下单"按钮 */
+  showConfirm?: boolean
+  /** 点击确认下单按钮的回调 */
+  onConfirm?: (selected: FactoryRecord[]) => void
+  /** 确认按钮文字 */
+  confirmText?: string
+}
+
+export const FactorySelector = forwardRef<FactorySelectorHandle, FactorySelectorProps>(function FactorySelector({
+  value,
+  onChange,
+  showConfirm = false,
+  onConfirm,
+  confirmText = '确认下单',
+}, ref) {
+  // 数据库存元，界面用万元编辑和显示
+  function toWanRecords(records: FactoryRecord[]): FactoryRecord[] {
+    return records.map(r => ({ ...r, amount: parseFloat(yuanToWan(r.amount)) || 0 }))
+  }
+  function toYuanRecords(records: FactoryRecord[]): FactoryRecord[] {
+    return records.map(r => ({ ...r, amount: wanToYuan(r.amount) ?? 0 }))
+  }
+  const initialInWan = toWanRecords(value)
   const [factories, setFactories] = useState<Factory[]>([])
-  const [selected, setSelected] = useState<FactoryRecord[]>(value)
+  const [selected, setSelected] = useState<FactoryRecord[]>(initialInWan)
+
+  useImperativeHandle(ref, () => ({
+    getSelected: () => toYuanRecords(selected)
+  }))
 
   useEffect(() => {
     const fetchFactories = async () => {
-      const supabase = createClient()
-      const { data } = await supabase.from('factories').select('*').order('name')
-      setFactories(data || [])
+      const res = await fetch('/api/factories', { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setFactories(data || [])
+      }
     }
     fetchFactories()
   }, [])
@@ -46,20 +78,20 @@ export function FactorySelector({ onChange, value }: FactorySelectorProps) {
     }
     const updated = [...selected, newRecord]
     setSelected(updated)
-    onChange(updated)
+    onChange?.(toYuanRecords(updated))
   }
 
   const updateAmount = (index: number, amount: number) => {
     const updated = [...selected]
     updated[index].amount = amount
     setSelected(updated)
-    onChange(updated)
+    onChange?.(toYuanRecords(updated))
   }
 
   const removeFactory = (index: number) => {
     const updated = selected.filter((_, i) => i !== index)
     setSelected(updated)
-    onChange(updated)
+    onChange?.(toYuanRecords(updated))
   }
 
   return (
@@ -70,12 +102,16 @@ export function FactorySelector({ onChange, value }: FactorySelectorProps) {
           .map(factory => (
             <button
               key={factory.id}
+              type="button"
               onClick={() => addFactory(factory)}
               className="px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200"
             >
               + {factory.name}
             </button>
           ))}
+        {factories.length === 0 && (
+          <p className="text-sm text-gray-400">暂无可选工厂</p>
+        )}
       </div>
 
       {selected.length > 0 && (
@@ -91,23 +127,37 @@ export function FactorySelector({ onChange, value }: FactorySelectorProps) {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => removeFactory(index)}
                   className="text-red-500 text-sm"
                 >
                   删除
                 </button>
               </div>
-              <input
-                type="number"
-                placeholder="金额"
-                value={record.amount || ''}
-                onChange={(e) => updateAmount(index, parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  placeholder="金额（万）"
+                  value={record.amount || ''}
+                  onChange={(e) => updateAmount(index, parseFloat(e.target.value) || 0)}
+                  className="flex-1 px-3 py-2 border rounded-lg"
+                />
+                <span className="text-sm text-muted-foreground whitespace-nowrap">万</span>
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      {showConfirm && selected.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onConfirm?.(toYuanRecords(selected))}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+        >
+          {confirmText}
+        </button>
+      )}
     </div>
   )
-}
+})

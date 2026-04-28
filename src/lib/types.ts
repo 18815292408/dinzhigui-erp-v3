@@ -1,5 +1,11 @@
 // Shared types for API routes (replaces auth-cloudflare.ts types)
 
+export const ADMIN_EMAIL = '446465159@qq.com'
+
+export function isAdmin(user: { email: string } | null | undefined): boolean {
+  return !!user && user.email === ADMIN_EMAIL
+}
+
 export interface SessionUser {
   id: string
   email: string
@@ -42,8 +48,9 @@ export interface Design {
   id: string
   organization_id: string
   customer_id: string | null
+  order_id: string | null
   created_by: string | null
-  status: 'draft' | 'submitted' | 'confirmed'
+  status: 'draft' | 'submitted'
   title: string | null
   room_count: number | null
   total_area: number | null
@@ -94,6 +101,7 @@ export interface Order {
   completed_at: string | null
   archived_at: string | null
   remarks: any[]
+  designs: Design[]
   created_at: string
   updated_at: string
 }

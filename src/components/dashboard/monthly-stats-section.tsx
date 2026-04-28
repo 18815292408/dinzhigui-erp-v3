@@ -1,30 +1,60 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Fragment, useEffect, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, TrendingUp } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, TrendingUp } from 'lucide-react'
+import { formatMoney } from '@/lib/format-amount'
+
+interface SalesOrderDetail {
+  id: string
+  order_no: string
+  customer_name: string
+  signed_at: string | null
+  signed_amount: number
+  payment_status: string
+  payment_confirmed_at: string | null
+  paid_amount: number
+}
+
+interface PaymentDetail {
+  id: string
+  order_no: string
+  customer_name: string
+  payment_confirmed_at: string | null
+  amount: number
+}
 
 interface SalesPerson {
+  id: string
   name: string
-  count: number
-  orders: {
-    order_no: string
-    customer_name: string
-    created_at: string
+  signed_count: number
+  signed_amount: number
+  paid_amount: number
+  orders: SalesOrderDetail[]
+  payments: PaymentDetail[]
+}
+
+interface DesignerOrderDetail {
+  id: string
+  order_no: string
+  customer_name: string
+  placed_at: string | null
+  amount: number
+  factory_records: {
+    factory_name: string
+    amount: number
   }[]
 }
 
 interface DesignerStat {
+  id: string
   name: string
-  count: number
+  order_count: number
   total_amount: number
-  orders: {
-    order_no: string
-    customer_name: string
-    amount: number
-  }[]
+  orders: DesignerOrderDetail[]
 }
 
 interface MonthlyStats {
@@ -33,18 +63,33 @@ interface MonthlyStats {
   sales: SalesPerson[]
   designers: DesignerStat[]
   summary: {
-    total_sales_orders: number
-    total_designer_orders: number
-    total_designer_amount: number
+    sales_order_count: number
+    sales_signed_amount: number
+    sales_paid_amount: number
+    designer_order_count: number
+    designer_order_amount: number
   }
 }
 
 function formatCurrency(amount: number): string {
-  return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+  return formatMoney(amount)
 }
 
 function formatMonth(year: number, month: number): string {
   return `${year}年${month}月`
+}
+
+function formatDate(value: string | null): string {
+  return value ? new Date(value).toLocaleDateString('zh-CN') : '未记录'
+}
+
+function SummaryCard({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
+  return (
+    <div className="rounded-lg border bg-white p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-xl font-semibold ${tone || ''}`}>{value}</p>
+    </div>
+  )
 }
 
 export function MonthlyStatsSection() {
@@ -54,6 +99,8 @@ export function MonthlyStatsSection() {
   const [stats, setStats] = useState<MonthlyStats | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedSales, setExpandedSales] = useState<string | null>(null)
+  const [expandedDesigner, setExpandedDesigner] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isCollapsed) {
@@ -65,12 +112,16 @@ export function MonthlyStatsSection() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/statistics/monthly?year=${year}&month=${month}`)
+      const res = await fetch(`/api/statistics/monthly?year=${year}&month=${month}`, {
+        credentials: 'include',
+      })
       if (!res.ok) {
         throw new Error('获取统计数据失败')
       }
       const data = await res.json()
       setStats(data)
+      setExpandedSales(null)
+      setExpandedDesigner(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : '获取统计数据失败')
     } finally {
@@ -88,14 +139,7 @@ export function MonthlyStatsSection() {
   }
 
   const handleNextMonth = () => {
-    const now = new Date()
-    const currentYear = now.getFullYear()
-    const currentMonth = now.getMonth() + 1
-
-    if (year > currentYear || (year === currentYear && month >= currentMonth)) {
-      return
-    }
-
+    if (!canGoNext()) return
     if (month === 12) {
       setYear(year + 1)
       setMonth(1)
@@ -114,13 +158,12 @@ export function MonthlyStatsSection() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-orange-500" />
             <CardTitle className="text-lg">月度业绩</CardTitle>
           </div>
           <div className="flex items-center gap-3">
-            {/* Month Navigation */}
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8">
                 <ChevronLeft className="h-4 w-4" />
@@ -145,7 +188,7 @@ export function MonthlyStatsSection() {
       </CardHeader>
 
       {!isCollapsed && (
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           {loading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -156,79 +199,161 @@ export function MonthlyStatsSection() {
             </div>
           ) : stats ? (
             <>
-              {/* Summary Cards */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">本月订单</p>
-                  <p className="text-xl font-bold">{stats.summary.total_sales_orders}</p>
-                </div>
-                <div className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">完成订单</p>
-                  <p className="text-xl font-bold text-green-600">{stats.summary.total_designer_orders}</p>
-                </div>
-                <div className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">订单总金额</p>
-                  <p className="text-xl font-bold text-orange-600">
-                    {formatCurrency(stats.summary.total_designer_amount)}
-                  </p>
-                </div>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <SummaryCard label="签单数" value={stats.summary.sales_order_count} />
+                <SummaryCard label="签单金额" value={formatCurrency(stats.summary.sales_signed_amount)} tone="text-blue-700" />
+                <SummaryCard label="收款金额" value={formatCurrency(stats.summary.sales_paid_amount)} tone="text-green-700" />
+                <SummaryCard label="下单数" value={stats.summary.designer_order_count} />
+                <SummaryCard label="下单总金额" value={formatCurrency(stats.summary.designer_order_amount)} tone="text-orange-700" />
               </div>
 
-              {/* Tables */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Sales Statistics */}
-                <div>
-                  <h4 className="text-sm font-medium mb-2 text-muted-foreground">销售统计</h4>
-                  {stats.sales && stats.sales.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>导购</TableHead>
-                          <TableHead className="text-right">订单数</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {stats.sales.map((salesPerson, idx) => (
-                          <TableRow key={idx}>
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground">销售签单与收款</h4>
+                {stats.sales.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>销售</TableHead>
+                        <TableHead className="text-right">签单数</TableHead>
+                        <TableHead className="text-right">签单金额</TableHead>
+                        <TableHead className="text-right">收款金额</TableHead>
+                        <TableHead className="w-20 text-right">明细</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stats.sales.map((salesPerson) => (
+                        <Fragment key={salesPerson.id}>
+                          <TableRow>
                             <TableCell className="font-medium">{salesPerson.name}</TableCell>
-                            <TableCell className="text-right">{salesPerson.count}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-2 text-center">暂无数据</p>
-                  )}
-                </div>
-
-                {/* Designer Statistics */}
-                <div>
-                  <h4 className="text-sm font-medium mb-2 text-muted-foreground">设计师业绩</h4>
-                  {stats.designers && stats.designers.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>设计师</TableHead>
-                          <TableHead className="text-right">完成数</TableHead>
-                          <TableHead className="text-right">总金额</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {stats.designers.map((designer, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="font-medium">{designer.name}</TableCell>
-                            <TableCell className="text-right">{designer.count}</TableCell>
-                            <TableCell className="text-right text-orange-600">
-                              {formatCurrency(designer.total_amount)}
+                            <TableCell className="text-right">{salesPerson.signed_count}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(salesPerson.signed_amount)}</TableCell>
+                            <TableCell className="text-right text-green-700">{formatCurrency(salesPerson.paid_amount)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setExpandedSales(expandedSales === salesPerson.id ? null : salesPerson.id)}
+                              >
+                                {expandedSales === salesPerson.id ? '收起' : '展开'}
+                              </Button>
                             </TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-2 text-center">暂无数据</p>
-                  )}
-                </div>
+                          {expandedSales === salesPerson.id && (
+                            <TableRow>
+                              <TableCell colSpan={5} className="bg-muted/30">
+                                <div className="space-y-4 p-2">
+                                  <div>
+                                    <p className="mb-2 text-xs font-medium text-muted-foreground">签单明细</p>
+                                    <div className="space-y-2">
+                                      {salesPerson.orders.map((order) => (
+                                        <div key={order.id} className="grid grid-cols-6 gap-2 text-sm">
+                                          <span>{order.order_no}</span>
+                                          <span>{order.customer_name}</span>
+                                          <span>{formatDate(order.signed_at)}</span>
+                                          <span className="text-right">{formatCurrency(order.signed_amount)}</span>
+                                          <span className="text-right">
+                                            <Badge className={order.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}>
+                                              {order.payment_status === 'paid' ? '已收款' : '未收款'}
+                                            </Badge>
+                                          </span>
+                                          <span className="text-right">{formatCurrency(order.paid_amount)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <p className="mb-2 text-xs font-medium text-muted-foreground">本月收款明细</p>
+                                    {salesPerson.payments.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {salesPerson.payments.map((payment) => (
+                                          <div key={payment.id} className="grid grid-cols-4 gap-2 text-sm">
+                                            <span>{payment.order_no}</span>
+                                            <span>{payment.customer_name}</span>
+                                            <span>{formatDate(payment.payment_confirmed_at)}</span>
+                                            <span className="text-right text-green-700">{formatCurrency(payment.amount)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground">本月暂无收款</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-2 text-center">暂无销售数据</p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground">设计师下单业绩</h4>
+                {stats.designers.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>设计师</TableHead>
+                        <TableHead className="text-right">下单数</TableHead>
+                        <TableHead className="text-right">下单总金额</TableHead>
+                        <TableHead className="w-20 text-right">明细</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stats.designers.map((designer) => (
+                        <Fragment key={designer.id}>
+                          <TableRow>
+                            <TableCell className="font-medium">{designer.name}</TableCell>
+                            <TableCell className="text-right">{designer.order_count}</TableCell>
+                            <TableCell className="text-right text-orange-700">{formatCurrency(designer.total_amount)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setExpandedDesigner(expandedDesigner === designer.id ? null : designer.id)}
+                              >
+                                {expandedDesigner === designer.id ? '收起' : '展开'}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {expandedDesigner === designer.id && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="bg-muted/30">
+                                <div className="space-y-3 p-2">
+                                  {designer.orders.map((order) => (
+                                    <div key={order.id} className="rounded border bg-white p-3">
+                                      <div className="grid grid-cols-4 gap-2 text-sm">
+                                        <span>{order.order_no}</span>
+                                        <span>{order.customer_name}</span>
+                                        <span>{formatDate(order.placed_at)}</span>
+                                        <span className="text-right text-orange-700">{formatCurrency(order.amount)}</span>
+                                      </div>
+                                      {order.factory_records.length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                          {order.factory_records.map((record, idx) => (
+                                            <span key={`${order.id}-${idx}`} className="rounded bg-muted px-2 py-1">
+                                              {record.factory_name}: {formatCurrency(record.amount)}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-2 text-center">暂无设计师下单数据</p>
+                )}
               </div>
             </>
           ) : null}

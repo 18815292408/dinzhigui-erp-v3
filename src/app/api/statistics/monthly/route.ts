@@ -1,123 +1,99 @@
-import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { buildMonthlyStatistics } from '@/lib/monthly-statistics'
+import { createAdminClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
 
 export async function GET(request: Request) {
   try {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get('session')
 
+    if (!sessionCookie) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = parseSessionUser(sessionCookie.value)
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString())
-    const month = parseInt(searchParams.get('month') || (new Date().getMonth() + 1).toString())
-
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('role, organization_id')
-      .eq('id', user.id)
-      .single()
-
-    if (userError || !userData) {
-      return NextResponse.json({ error: 'User not found', detail: userError?.message }, { status: 400 })
-    }
-
-    if (!['owner', 'manager'].includes(userData?.role)) {
+    if (!['owner', 'manager'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const year = Number(searchParams.get('year') || new Date().getFullYear())
+    const month = Number(searchParams.get('month') || new Date().getMonth() + 1)
+
+    const adminSupabase = await createAdminClient()
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`
     const endDate = new Date(year, month, 0).toISOString().slice(0, 10)
 
-    const { data: salesStats, error: salesError } = await supabase
+    const { data: monthlyOrders, error: ordersError } = await adminSupabase
       .from('orders')
       .select(`
+        id,
+        order_no,
+        customer_name,
         created_by,
-        users!created_by(name),
-        order_no,
-        customer_name,
-        created_at
-      `)
-      .eq('organization_id', userData?.organization_id)
-      .gte('created_at', startDate)
-      .lte('created_at', `${endDate}T23:59:59`)
-
-    if (salesError) {
-      return NextResponse.json({ error: 'Failed to fetch sales stats', detail: salesError.message }, { status: 500 })
-    }
-
-    const salesByPerson: Record<string, { name: string, count: number, orders: any[] }> = {}
-    salesStats?.forEach(order => {
-      const salesId = order.created_by
-      if (!salesByPerson[salesId]) {
-        salesByPerson[salesId] = {
-          name: order.users?.name || '未知',
-          count: 0,
-          orders: []
-        }
-      }
-      salesByPerson[salesId].count++
-      salesByPerson[salesId].orders.push({
-        order_no: order.order_no,
-        customer_name: order.customer_name,
-        created_at: order.created_at
-      })
-    })
-
-    const { data: designerStats, error: designerError } = await supabase
-      .from('orders')
-      .select(`
         assigned_designer,
-        users!assigned_designer(name),
-        order_no,
-        customer_name,
+        created_at,
+        updated_at,
+        signed_amount,
+        final_order_amount,
+        payment_status,
+        payment_confirmed_at,
         factory_records,
-        completed_at
+        status
       `)
-      .eq('organization_id', userData?.organization_id)
-      .eq('status', 'completed')
-      .gte('completed_at', startDate)
-      .lte('completed_at', `${endDate}T23:59:59`)
+      .eq('organization_id', user.organization_id)
+      .or(
+        `and(created_at.gte.${startDate},created_at.lte.${endDate}T23:59:59),and(payment_confirmed_at.gte.${startDate},payment_confirmed_at.lte.${endDate}T23:59:59),and(updated_at.gte.${startDate},updated_at.lte.${endDate}T23:59:59)`
+      )
 
-    if (designerError) {
-      return NextResponse.json({ error: 'Failed to fetch designer stats', detail: designerError.message }, { status: 500 })
+    if (ordersError) {
+      return NextResponse.json(
+        { error: 'Failed to fetch monthly statistics', detail: ordersError.message },
+        { status: 500 }
+      )
     }
 
-    const designerByPerson: Record<string, { name: string, count: number, total_amount: number, orders: any[] }> = {}
-    designerStats?.forEach(order => {
-      const designerId = order.assigned_designer
-      if (!designerByPerson[designerId]) {
-        designerByPerson[designerId] = {
-          name: order.users?.name || '未知',
-          count: 0,
-          total_amount: 0,
-          orders: []
-        }
-      }
-      designerByPerson[designerId].count++
-      const records = order.factory_records || []
-      const total = records.reduce((sum: number, r: any) => sum + (r.amount || 0), 0)
-      designerByPerson[designerId].total_amount += total
-      designerByPerson[designerId].orders.push({
-        order_no: order.order_no,
-        customer_name: order.customer_name,
-        amount: total
-      })
-    })
+    const orderIds = (monthlyOrders || []).map((order: any) => order.id)
+    const { data: designs } = orderIds.length > 0
+      ? await adminSupabase
+        .from('designs')
+        .select('order_id, created_by')
+        .in('order_id', orderIds)
+      : { data: [] }
 
-    return NextResponse.json({
+    const designCreatorByOrderId = new Map(
+      (designs || []).map((design: any) => [design.order_id, design.created_by])
+    )
+    const ordersWithDesigners = (monthlyOrders || []).map((order: any) => ({
+      ...order,
+      design_created_by: designCreatorByOrderId.get(order.id) || null,
+    }))
+
+    const userIds = Array.from(new Set(ordersWithDesigners.flatMap((order: any) => [
+      order.created_by,
+      order.assigned_designer,
+      order.design_created_by,
+    ]).filter(Boolean)))
+
+    const { data: users } = userIds.length > 0
+      ? await adminSupabase
+        .from('users')
+        .select('id, display_name, email, phone')
+        .in('id', userIds)
+      : { data: [] }
+
+    return NextResponse.json(buildMonthlyStatistics({
       year,
       month,
-      sales: Object.values(salesByPerson),
-      designers: Object.values(designerByPerson),
-      summary: {
-        total_sales_orders: salesStats?.length || 0,
-        total_designer_orders: designerStats?.length || 0,
-        total_designer_amount: Object.values(designerByPerson).reduce((sum, d) => sum + d.total_amount, 0)
-      }
-    })
+      orders: ordersWithDesigners,
+      users: users || [],
+    }))
   } catch (err: any) {
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 })
   }

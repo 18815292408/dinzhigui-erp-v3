@@ -1,36 +1,41 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Brain, AlertTriangle, TrendingUp, Users, Clock, Lightbulb, X, ChevronDown, ChevronUp, Sparkles, RefreshCw, History, Eye } from 'lucide-react'
+import { Brain, AlertTriangle, DollarSign, Calendar, Lightbulb, X, ChevronDown, ChevronUp, Sparkles, RefreshCw, History, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-interface CustomerInsight {
-  id: string
-  name: string
-  phone: string | null
-  intention_level: string | null
-  last_followup?: string
-  days_since_created?: number
-  days_since_last_followup?: number | null
-  design_status?: string
-  issue?: string
+interface OrderItem {
+  order_no: string
+  customer_name: string
+  stage_label: string
+  days_in_stage: number
+  amount: number
+  responsible: string
+}
+
+interface InsightItem {
+  label: string
+  amount?: number
+  order_count?: number
+  detail: string
 }
 
 interface Insight {
   category: string
   title: string
-  customers?: CustomerInsight[]
-  recommendations?: string[]
   summary: string
   priority: 'high' | 'medium' | 'low'
+  orders?: OrderItem[]
+  items?: InsightItem[]
+  recommendations?: string[]
 }
 
 interface AnalysisResult {
   insights: Insight[]
   summary: string
   analyzed_at: string
-  total_customers: number
+  total_orders: number
 }
 
 interface HistoryItem {
@@ -42,35 +47,23 @@ interface HistoryItem {
 }
 
 const categoryConfig: Record<string, { icon: any; color: string; bgColor: string; label: string }> = {
-  immediate_followup: {
+  bottleneck_orders: {
     icon: AlertTriangle,
     color: 'text-red-600',
     bgColor: 'bg-red-50',
-    label: '立即跟进',
+    label: '流程卡点',
   },
-  risk_customers: {
-    icon: AlertTriangle,
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-50',
-    label: '风险客户',
+  revenue_attention: {
+    icon: DollarSign,
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-50',
+    label: '金额关注',
   },
-  ready_to_close: {
-    icon: TrendingUp,
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
-    label: '即将成交',
-  },
-  silent_customers: {
-    icon: Clock,
-    color: 'text-gray-500',
-    bgColor: 'bg-gray-100',
-    label: '沉默客户',
-  },
-  new_customers: {
-    icon: Users,
+  weekly_pulse: {
+    icon: Calendar,
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
-    label: '本周新客',
+    label: '本周动态',
   },
   recommendations: {
     icon: Lightbulb,
@@ -86,13 +79,20 @@ const priorityConfig: Record<string, { label: string; bg: string; text: string }
   low: { label: '参考', bg: 'bg-green-100', text: 'text-green-700' },
 }
 
+function formatAmount(n: number) {
+  if (!n) return '-'
+  if (n >= 10000) return `¥${(n / 10000).toFixed(1)}万`
+  return `¥${n.toLocaleString('zh-CN')}`
+}
+
 function InsightCard({ insight }: { insight: Insight }) {
   const [expanded, setExpanded] = useState(false)
   const config = categoryConfig[insight.category] || categoryConfig.recommendations
   const Icon = config.icon
   const priority = priorityConfig[insight.priority] || priorityConfig.low
 
-  const hasCustomers = insight.customers && insight.customers.length > 0
+  const hasOrders = insight.orders && insight.orders.length > 0
+  const hasItems = insight.items && insight.items.length > 0
   const hasRecommendations = insight.recommendations && insight.recommendations.length > 0
 
   return (
@@ -118,51 +118,75 @@ function InsightCard({ insight }: { insight: Insight }) {
       {/* Summary */}
       <p className="text-[12px] text-apple-gray-500 mb-3">{insight.summary}</p>
 
-      {/* Content based on category */}
-      {hasCustomers && (
+      {/* Orders list (bottleneck_orders) */}
+      {hasOrders && (
         <div className="space-y-2">
-          {insight.customers!.slice(0, expanded ? undefined : 3).map((customer) => (
-            <div
-              key={customer.id}
-              className="flex items-center justify-between p-2 rounded-lg bg-apple-gray-50/50"
-            >
-              <div>
-                <p className="text-[13px] font-medium text-apple-gray-900">{customer.name}</p>
-                <p className="text-[11px] text-apple-gray-500">{customer.phone || '无电话'}</p>
-              </div>
-              <div className="text-right">
-                {customer.days_since_last_followup !== undefined && customer.days_since_last_followup !== null && (
-                  <p className="text-[11px] text-apple-gray-500">
-                    {customer.days_since_last_followup === 0 ? '今天跟进' : `${customer.days_since_last_followup}天未跟进`}
-                  </p>
-                )}
-                {customer.design_status && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                    {customer.design_status === 'confirmed' ? '设计已确认' : customer.design_status === 'draft' ? '草稿' : '已提交'}
+          {insight.orders!.slice(0, expanded ? undefined : 3).map((order, idx) => (
+            <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-apple-gray-50/50">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-apple-gray-900 truncate">
+                    {order.order_no}
                   </span>
-                )}
+                  <span className="text-[11px] text-apple-gray-500">{order.customer_name}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                    {order.stage_label}
+                  </span>
+                  <span className="text-[11px] text-red-500">
+                    卡了 {order.days_in_stage} 天
+                  </span>
+                  <span className="text-[11px] text-apple-gray-400">
+                    负责人: {order.responsible}
+                  </span>
+                </div>
               </div>
+              <span className="text-[13px] font-medium text-apple-gray-700 ml-2 flex-shrink-0">
+                {formatAmount(order.amount)}
+              </span>
             </div>
           ))}
-          {insight.customers!.length > 3 && (
+          {insight.orders!.length > 3 && (
             <button
               onClick={() => setExpanded(!expanded)}
               className="flex items-center gap-1 text-[12px] text-blue-600 hover:text-blue-700 transition-colors w-full justify-center"
             >
               {expanded ? (
-                <>
-                  <ChevronUp className="w-3 h-3" /> 收起
-                </>
+                <><ChevronUp className="w-3 h-3" /> 收起</>
               ) : (
-                <>
-                  <ChevronDown className="w-3 h-3" /> 查看更多({insight.customers!.length - 3}位)
-                </>
+                <><ChevronDown className="w-3 h-3" /> 查看更多 ({insight.orders!.length - 3}笔)</>
               )}
             </button>
           )}
         </div>
       )}
 
+      {/* Items list (revenue_attention, weekly_pulse) */}
+      {hasItems && (
+        <div className="space-y-2">
+          {insight.items!.map((item, idx) => (
+            <div key={idx} className="flex items-start justify-between p-2 rounded-lg bg-apple-gray-50/50">
+              <div className="flex-1">
+                <p className="text-[13px] font-medium text-apple-gray-900">{item.label}</p>
+                <p className="text-[11px] text-apple-gray-500 mt-0.5">{item.detail}</p>
+              </div>
+              {(item.amount || item.order_count) && (
+                <div className="text-right flex-shrink-0 ml-2">
+                  {item.amount ? (
+                    <p className="text-[14px] font-semibold text-amber-600">{formatAmount(item.amount)}</p>
+                  ) : null}
+                  {item.order_count ? (
+                    <p className="text-[11px] text-apple-gray-500">{item.order_count}笔</p>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recommendations */}
       {hasRecommendations && (
         <div className="space-y-2">
           {insight.recommendations!.map((rec, idx) => (
@@ -194,22 +218,18 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [selectedHistory, setSelectedHistory] = useState<HistoryItem | null>(null)
 
-  // Check if user can run analysis
   useEffect(() => {
     const canAnalyze = ['owner', 'manager'].includes(userRole)
     setIsManager(canAnalyze)
     setLoading(false)
   }, [userRole])
 
-  // Load stored analysis on mount
   useEffect(() => {
     if (loading) return
 
     const fetchStoredAnalysis = async () => {
       try {
-        const response = await fetch('/api/ai/dashboard-analysis', {
-          method: 'GET',
-        })
+        const response = await fetch('/api/ai/dashboard-analysis', { method: 'GET' })
         if (response.ok) {
           const data = await response.json()
           if (data.data) {
@@ -256,9 +276,7 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
   const loadHistory = async () => {
     setLoadingHistory(true)
     try {
-      const response = await fetch('/api/ai/dashboard-analysis?history=true', {
-        method: 'GET',
-      })
+      const response = await fetch('/api/ai/dashboard-analysis?history=true', { method: 'GET' })
       if (response.ok) {
         const data = await response.json()
         setHistoryList(data.data || [])
@@ -292,7 +310,7 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
     )
   }
 
-  // Initial state with analyze button (only for manager/owner)
+  // Initial state with analyze button
   if (!analysisResult && !error && !isAnalyzing) {
     return (
       <>
@@ -303,7 +321,9 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
                 <Sparkles className="w-7 h-7 text-white" />
               </div>
               <h3 className="text-[16px] font-semibold text-apple-gray-900 mb-1">AI 运营分析</h3>
-              <p className="text-[13px] text-apple-gray-500 mb-4 text-center">基于客户数据，AI 为你提供运营洞察</p>
+              <p className="text-[13px] text-apple-gray-500 mb-4 text-center">
+                基于订单流程数据，AI 帮你发现卡点和资金风险
+              </p>
               {isManager ? (
                 <div className="flex gap-2">
                   <Button onClick={runAnalysis} size="lg" className="gap-2 bg-apple-purple hover:bg-apple-purple/90">
@@ -325,8 +345,8 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
         {/* History Modal */}
         {showHistory && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/30" onClick={() => setShowHistory(false)} />
-            <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col z-10 mx-4">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
+            <div className="relative bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col z-10 mx-4">
               <div className="flex items-center justify-between p-4 border-b">
                 <h3 className="text-[16px] font-semibold">AI 运营分析历史记录</h3>
                 <Button variant="ghost" size="icon-sm" onClick={() => setShowHistory(false)}>
@@ -339,9 +359,7 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
                     <div className="w-8 h-8 rounded-full border-2 border-apple-purple/30 border-t-apple-purple animate-spin" />
                   </div>
                 ) : historyList.length === 0 ? (
-                  <div className="text-center py-8 text-[14px] text-apple-gray-500">
-                    暂无历史记录
-                  </div>
+                  <div className="text-center py-8 text-[14px] text-apple-gray-500">暂无历史记录</div>
                 ) : (
                   <div className="space-y-2">
                     {historyList.map((item) => (
@@ -355,7 +373,7 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
                             {new Date(item.created_at).toLocaleString('zh-CN')}
                           </p>
                           <p className="text-[12px] text-apple-gray-500">
-                            分析 {item.total_customers} 位客户
+                            分析 {item.total_customers} 条订单
                           </p>
                         </div>
                         <Button variant="ghost" size="sm" className="gap-1">
@@ -374,8 +392,8 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
         {/* History Detail Modal */}
         {selectedHistory && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/30" onClick={() => setSelectedHistory(null)} />
-            <div className="relative bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col z-10 mx-4">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedHistory(null)} />
+            <div className="relative bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col z-10 mx-4">
               <div className="flex items-center justify-between p-4 border-b">
                 <h3 className="text-[16px] font-semibold">
                   {new Date(selectedHistory.created_at).toLocaleString('zh-CN')} 的分析结果
@@ -385,13 +403,47 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
                 </Button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {selectedHistory.insights.map((insight, index) => (
-                    <InsightCard key={index} insight={insight} />
-                  ))}
-                </div>
+                {(() => {
+                  const flowInsights = selectedHistory.insights.filter(i => i.category !== 'recommendations')
+                  const recInsight = selectedHistory.insights.find(i => i.category === 'recommendations')
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {flowInsights.map((insight, index) => (
+                          <InsightCard key={index} insight={insight} />
+                        ))}
+                      </div>
+                      {recInsight && recInsight.recommendations && recInsight.recommendations.length > 0 && (
+                        <div className="rounded-xl border-2 border-apple-purple/20 bg-gradient-to-br from-apple-purple/5 to-apple-blue/5 p-5">
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="w-8 h-8 rounded-lg bg-apple-purple/20 flex items-center justify-center">
+                              <Lightbulb className="w-4 h-4 text-apple-purple" />
+                            </div>
+                            <div>
+                              <h4 className="text-[15px] font-semibold text-apple-gray-900">{recInsight.title}</h4>
+                              <p className="text-[12px] text-apple-gray-500">{recInsight.summary}</p>
+                            </div>
+                            <span className="ml-auto inline-block text-[10px] font-medium px-2 py-1 rounded-full bg-red-100 text-red-700">
+                              重点
+                            </span>
+                          </div>
+                          <div className="space-y-3">
+                            {recInsight.recommendations.map((rec, idx) => (
+                              <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-white/80 border border-apple-gray-100">
+                                <span className="w-6 h-6 rounded-full bg-apple-purple text-white text-[12px] font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  {idx + 1}
+                                </span>
+                                <p className="text-[13px] text-apple-gray-800 leading-relaxed">{rec}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
                 <div className="text-center text-[12px] text-apple-gray-500 py-2 border-t">
-                  共分析 {selectedHistory.total_customers} 位客户
+                  共分析 {selectedHistory.total_customers} 条订单
                 </div>
               </div>
             </div>
@@ -401,6 +453,7 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
     )
   }
 
+  // Main view with results
   return (
     <>
       <Card>
@@ -450,37 +503,64 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Error state */}
           {error && (
-            <div className="bg-red-50 rounded-xl p-4 text-red-600 text-[13px]">
-              {error}
-            </div>
+            <div className="bg-red-50 rounded-xl p-4 text-red-600 text-[13px]">{error}</div>
           )}
 
-          {/* Loading state */}
           {isAnalyzing && (
             <div className="flex flex-col items-center justify-center py-8">
               <div className="w-10 h-10 rounded-full border-4 border-apple-purple/20 border-t-apple-purple animate-spin mb-4" />
-              <p className="text-[14px] text-apple-gray-600">AI 正在分析客户数据...</p>
+              <p className="text-[14px] text-apple-gray-600">AI 正在分析订单流程数据...</p>
               <p className="text-[12px] text-apple-gray-400 mt-1">请稍候</p>
             </div>
           )}
 
-          {/* Insights grid */}
-          {analysisResult && !isAnalyzing && (
+          {analysisResult && !isAnalyzing && (() => {
+            const flowInsights = analysisResult.insights.filter(i => i.category !== 'recommendations')
+            const recInsight = analysisResult.insights.find(i => i.category === 'recommendations')
+
+            return (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {analysisResult.insights.map((insight, index) => (
+                {flowInsights.map((insight, index) => (
                   <InsightCard key={index} insight={insight} />
                 ))}
               </div>
 
-              {/* Summary footer */}
+              {recInsight && recInsight.recommendations && recInsight.recommendations.length > 0 && (
+                <div className="rounded-xl border-2 border-apple-purple/20 bg-gradient-to-br from-apple-purple/5 to-apple-blue/5 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-apple-purple/20 flex items-center justify-center">
+                      <Lightbulb className="w-4 h-4 text-apple-purple" />
+                    </div>
+                    <div>
+                      <h4 className="text-[15px] font-semibold text-apple-gray-900">{recInsight.title}</h4>
+                      <p className="text-[12px] text-apple-gray-500">{recInsight.summary}</p>
+                    </div>
+                    <span className="ml-auto inline-block text-[10px] font-medium px-2 py-1 rounded-full bg-red-100 text-red-700">
+                      重点
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {recInsight.recommendations.map((rec, idx) => (
+                      <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-white/80 border border-apple-gray-100">
+                        <span className="w-6 h-6 rounded-full bg-apple-purple text-white text-[12px] font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <p className="text-[13px] text-apple-gray-800 leading-relaxed">{rec}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="text-center text-[12px] text-apple-gray-500 py-2 border-t border-apple-gray-100 pt-3">
-                共分析 {analysisResult.total_customers} 位客户
+                基于 {analysisResult.total_orders} 条订单分析
               </div>
             </>
-          )}
+            )
+          })()}
         </CardContent>
       </Card>
 
@@ -501,9 +581,7 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
                   <div className="w-8 h-8 rounded-full border-2 border-apple-purple/30 border-t-apple-purple animate-spin" />
                 </div>
               ) : historyList.length === 0 ? (
-                <div className="text-center py-8 text-[14px] text-apple-gray-500">
-                  暂无历史记录
-                </div>
+                <div className="text-center py-8 text-[14px] text-apple-gray-500">暂无历史记录</div>
               ) : (
                 <div className="space-y-2">
                   {historyList.map((item) => (
@@ -517,7 +595,7 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
                           {new Date(item.created_at).toLocaleString('zh-CN')}
                         </p>
                         <p className="text-[12px] text-apple-gray-500">
-                          分析 {item.total_customers} 位客户
+                          分析 {item.total_customers} 条订单
                         </p>
                       </div>
                       <Button variant="ghost" size="sm" className="gap-1">
@@ -553,7 +631,7 @@ export function AIInsightsPanel({ userRole }: AIInsightsPanelProps) {
                 ))}
               </div>
               <div className="text-center text-[12px] text-apple-gray-500 py-2 border-t">
-                共分析 {selectedHistory.total_customers} 位客户
+                共分析 {selectedHistory.total_customers} 条订单
               </div>
             </div>
           </div>

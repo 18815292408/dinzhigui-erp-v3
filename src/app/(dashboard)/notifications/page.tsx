@@ -107,16 +107,16 @@ function AcceptModal({ notification, onClose, onAccepted, setSuccessMessage, set
         onClose()
         // 使用自定义提示替代 alert，避免阻塞 UI 更新
         setSuccessMessage('接单成功！请前往方案管理查看。')
-        setTimeout(() => setSuccessMessage(null), 3000)
+        setTimeout(() => setSuccessMessage(''), 3000)
       } else {
         const data = await response.json()
         setErrorMessage(data.error || '接单失败')
-        setTimeout(() => setErrorMessage(null), 3000)
+        setTimeout(() => setErrorMessage(''), 3000)
       }
     } catch (error) {
       console.error('Error accepting order:', error)
       setErrorMessage('接单失败')
-      setTimeout(() => setErrorMessage(null), 3000)
+      setTimeout(() => setErrorMessage(''), 3000)
     } finally {
       setLoading(false)
     }

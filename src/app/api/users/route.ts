@@ -36,13 +36,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '请填写员工姓名' }, { status: 400 })
   }
 
-  // Only owner can create manager accounts
-  if (role === 'manager' && currentUser.role !== 'owner') {
-    return NextResponse.json({ error: '只有管理员可以创建店长账号' }, { status: 403 })
+  // Only owner can create manager/owner accounts
+  if (['owner', 'manager'].includes(role) && currentUser.role !== 'owner') {
+    return NextResponse.json({ error: '只有管理员可以创建老板/店长账号' }, { status: 403 })
   }
 
   // Valid roles for creation
-  if (!['manager', 'sales', 'designer', 'installer'].includes(role)) {
+  if (!['owner', 'manager', 'sales', 'designer', 'installer'].includes(role)) {
     return NextResponse.json({ error: '无效的角色' }, { status: 400 })
   }
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   const adminSupabase = await createAdminClient()
 
   // Role limits (filtered by organization)
-  const ROLE_LIMITS: Record<string, number> = { manager: 5, sales: 3, designer: 3, installer: 3 }
+  const ROLE_LIMITS: Record<string, number> = { owner: 99, manager: 1, sales: 3, designer: 3, installer: 3 }
   const { count } = await adminSupabase
     .from('users')
     .select('id', { count: 'exact', head: true })
@@ -101,10 +101,10 @@ export async function POST(request: NextRequest) {
 
   console.log('Auth user created:', authUser.id, 'role:', role)
 
-  // For manager role: create NEW organization (each manager represents a new store)
+  // For owner/manager role: create NEW organization (each boss/manager represents a new store)
   // For other roles: use current user's organization
   let organizationId = currentUser.organization_id
-  if (role === 'manager') {
+  if (role === 'owner' || role === 'manager') {
     // Generate new UUID for new store's organization
     organizationId = crypto.randomUUID()
 

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatMoney } from '@/lib/format-amount'
 import { Upload, FileText, X, Check } from 'lucide-react'
 
 interface Design {
@@ -17,15 +18,17 @@ interface Design {
   cad_file: string | null
   cad_file_url: string | null
   kujiale_link: string | null
-  signed_amount?: number | null
 }
 
 interface Props {
   design: Design
+  signedAmount?: number | null
   onSaved?: () => void
+  /** 提交方案成功后跳转的目标客户页路径，传入如 `/customers/xxx` */
+  submitSuccessHref?: string
 }
 
-export function DesignEditForm({ design, onSaved }: Props) {
+export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHref }: Props) {
   const [form, setForm] = useState({
     title: design.title || '',
     room_count: design.room_count?.toString() || '',
@@ -37,10 +40,10 @@ export function DesignEditForm({ design, onSaved }: Props) {
     cad_file_url: design.cad_file_url || '',
   })
 
-  // 如果有订单签单金额，显示只读值而不是输入框
-  const hasSignedAmount = design.orders?.signed_amount != null
+  const hasSignedAmount = signedAmount != null
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const router = useRouter()
@@ -80,8 +83,7 @@ export function DesignEditForm({ design, onSaved }: Props) {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSave = async () => {
     setLoading(true)
     setError('')
     setSuccess(false)
@@ -118,8 +120,35 @@ export function DesignEditForm({ design, onSaved }: Props) {
     }
   }
 
+  const handleSubmitDesign = async () => {
+    setSubmitting(true)
+    setError('')
+    try {
+      // 先保存
+      await handleSave()
+      // 再提交方案
+      const res = await fetch(`/api/designs/${design.id}/submit-design`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '提交方案失败')
+      }
+      if (submitSuccessHref) {
+        router.push(submitSuccessHref)
+      } else {
+        router.refresh()
+      }
+    } catch (err: any) {
+      setError(err.message || '提交方案失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center gap-2">
           <Check className="w-4 h-4 text-green-600" />
@@ -167,7 +196,7 @@ export function DesignEditForm({ design, onSaved }: Props) {
         <label className="text-sm font-medium">成交价（元）</label>
         {hasSignedAmount ? (
           <div className="p-3 bg-gray-50 rounded-md">
-            <p className="text-green-600 font-medium">¥{design.orders?.signed_amount}万（来自订单签单金额）</p>
+            <p className="text-green-600 font-medium">{formatMoney(signedAmount)}（来自订单签单金额）</p>
           </div>
         ) : (
           <Input
@@ -240,10 +269,21 @@ export function DesignEditForm({ design, onSaved }: Props) {
       </div>
 
       <div className="flex gap-4">
-        <Button type="submit" disabled={loading || uploading}>
+        <Button type="button" onClick={handleSave} disabled={loading || uploading}>
           {loading ? '保存中...' : '保存方案'}
         </Button>
+        {submitSuccessHref && (
+          <Button
+            type="button"
+            variant="default"
+            onClick={handleSubmitDesign}
+            disabled={loading || uploading || submitting}
+            className="bg-blue-500 hover:bg-blue-600"
+          >
+            {submitting ? '提交中...' : '保存并提交方案'}
+          </Button>
+        )}
       </div>
-    </form>
+    </div>
   )
 }

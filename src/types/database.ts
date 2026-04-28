@@ -33,7 +33,7 @@ export interface Database {
           email: string | null
           phone: string | null
           display_name: string | null
-          role: 'owner' | 'designer' | 'sales' | 'installer'
+          role: 'owner' | 'manager' | 'designer' | 'sales' | 'installer'
           expires_at: string | null
           created_at: string
           updated_at: string
@@ -44,7 +44,7 @@ export interface Database {
           email?: string | null
           phone?: string | null
           display_name?: string | null
-          role: 'owner' | 'designer' | 'sales' | 'installer'
+          role: 'owner' | 'manager' | 'designer' | 'sales' | 'installer'
           expires_at?: string | null
           created_at?: string
           updated_at?: string
@@ -54,7 +54,7 @@ export interface Database {
           email?: string | null
           phone?: string | null
           display_name?: string | null
-          role?: 'owner' | 'designer' | 'sales' | 'installer'
+          role?: 'owner' | 'manager' | 'designer' | 'sales' | 'installer'
           expires_at?: string | null
           updated_at?: string
         }
@@ -109,8 +109,9 @@ export interface Database {
           id: string
           organization_id: string
           customer_id: string | null
+          order_id: string | null
           created_by: string | null
-          status: 'draft' | 'submitted' | 'confirmed'
+          status: 'draft' | 'submitted'
           title: string | null
           room_count: number | null
           total_area: number | null
@@ -124,8 +125,9 @@ export interface Database {
           id?: string
           organization_id: string
           customer_id?: string | null
+          order_id?: string | null
           created_by?: string | null
-          status?: 'draft' | 'submitted' | 'confirmed'
+          status?: 'draft' | 'submitted'
           title?: string | null
           room_count?: number | null
           total_area?: number | null
@@ -137,7 +139,8 @@ export interface Database {
         }
         Update: {
           customer_id?: string | null
-          status?: 'draft' | 'submitted' | 'confirmed'
+          order_id?: string | null
+          status?: 'draft' | 'submitted'
           title?: string | null
           room_count?: number | null
           total_area?: number | null
@@ -154,6 +157,7 @@ export interface Database {
           customer_id: string | null
           design_id: string | null
           assigned_to: string | null
+          created_by: string | null
           status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
           scheduled_date: string | null
           completed_at: string | null
@@ -168,6 +172,7 @@ export interface Database {
           customer_id?: string | null
           design_id?: string | null
           assigned_to?: string | null
+          created_by?: string | null
           status?: 'pending' | 'in_progress' | 'completed' | 'cancelled'
           scheduled_date?: string | null
           completed_at?: string | null

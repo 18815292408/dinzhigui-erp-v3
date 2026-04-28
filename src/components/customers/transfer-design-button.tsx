@@ -74,7 +74,7 @@ export function TransferDesignButton({ customerId, customerName, organizationId 
         body: JSON.stringify({
           customer_name: customerName,
           customer_id: customerId,
-          signed_amount: parseFloat(signedAmount),
+          signed_amount: parseFloat(signedAmount) * 10000,
         }),
       })
 
