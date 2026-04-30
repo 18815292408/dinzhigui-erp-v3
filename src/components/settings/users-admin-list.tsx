@@ -190,8 +190,9 @@ export function UsersAdminList({ owners, staffByOrg }: Props) {
   }
 
   // Render a single user row (used for both owners and staff)
-  const renderUserRow = (u: any, isStaff: boolean) => {
-    const expiryDisplay = getExpiryDisplay(u.expires_at)
+  const renderUserRow = (u: any, isStaff: boolean, bossExpiresAt?: string | null) => {
+    const effectiveExpiry = isStaff ? (u.expires_at ?? bossExpiresAt ?? null) : u.expires_at
+    const expiryDisplay = getExpiryDisplay(effectiveExpiry)
     const isEditing = editingId === u.id
 
     return (
@@ -407,7 +408,7 @@ export function UsersAdminList({ owners, staffByOrg }: Props) {
             {/* Staff rows - expandable */}
             {isExpanded && staff.length > 0 && (
               <div className="ml-4 mt-1 space-y-1 border-l-2 border-purple-200 pl-4">
-                {staff.map((s: any) => renderUserRow(s, true))}
+                {staff.map((s: any) => renderUserRow(s, true, owner.expires_at))}
               </div>
             )}
             {isExpanded && staff.length === 0 && (
