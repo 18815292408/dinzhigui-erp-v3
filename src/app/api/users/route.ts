@@ -147,17 +147,34 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Inherit owner's expires_at for new staff accounts
+  let inheritedExpiry: string | null = null
+  if (role !== 'owner') {
+    const { data: orgOwner } = await adminSupabase
+      .from('users')
+      .select('expires_at')
+      .eq('organization_id', organizationId)
+      .eq('role', 'owner')
+      .single()
+    inheritedExpiry = orgOwner?.expires_at || null
+  }
+
   // Upsert: insert or update with correct role and organization
+  const upsertData: any = {
+    id: authUser.id,
+    display_name,
+    phone: phone || null,
+    email: email || null,
+    role,
+    organization_id: organizationId,
+  }
+  if (inheritedExpiry) {
+    upsertData.expires_at = inheritedExpiry
+  }
+
   const { error: profileError } = await adminSupabase
     .from('users')
-    .upsert({
-      id: authUser.id,
-      display_name,
-      phone: phone || null,
-      email: email || null,
-      role,
-      organization_id: organizationId,
-    })
+    .upsert(upsertData)
 
   if (profileError) {
     console.error('Profile upsert error:', profileError)
