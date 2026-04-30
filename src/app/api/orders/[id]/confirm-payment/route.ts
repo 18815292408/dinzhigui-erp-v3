@@ -26,15 +26,21 @@ export async function PATCH(
 
   const adminSupabase = await createAdminClient()
   const orderId = params.id
+  const { factory_records } = await request.json()
+
+  const updateData: any = {
+    status: 'pending_shipment',
+    payment_status: 'paid',
+    payment_confirmed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  if (factory_records) {
+    updateData.factory_records = factory_records
+  }
 
   const { data: order, error } = await adminSupabase
     .from('orders')
-    .update({
-      status: 'pending_shipment',
-      payment_status: 'paid',
-      payment_confirmed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', orderId)
     .eq('organization_id', user.organization_id)
     .eq('status', 'pending_payment')
@@ -76,23 +82,28 @@ export async function POST(
   const adminSupabase = await createAdminClient()
   const orderId = params.id
 
-  const { estimated_shipment_date, installer_id } = await request.json()
+  const { estimated_shipment_date, installer_id, factory_records } = await request.json()
 
   if (!installer_id) {
     return NextResponse.json({ error: '请选择安装师傅' }, { status: 400 })
   }
 
   // 进入待出货阶段（由安装管理人员填写出货时间）
+  const updateData: any = {
+    status: 'pending_shipment',
+    payment_status: 'paid',
+    payment_confirmed_at: new Date().toISOString(),
+    estimated_shipment_date: estimated_shipment_date || null,
+    assigned_installer: installer_id,
+    updated_at: new Date().toISOString(),
+  }
+  if (factory_records) {
+    updateData.factory_records = factory_records
+  }
+
   const { data: order, error } = await adminSupabase
     .from('orders')
-    .update({
-      status: 'pending_shipment',
-      payment_status: 'paid',
-      payment_confirmed_at: new Date().toISOString(),
-      estimated_shipment_date: estimated_shipment_date || null,
-      assigned_installer: installer_id,
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', orderId)
     .eq('organization_id', user.organization_id)
     .eq('status', 'pending_payment')

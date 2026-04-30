@@ -221,13 +221,15 @@ export default function OrderDetailPage() {
     }
   }
 
-  const handleConfirmPayment = async () => {
+  const handleConfirmPayment = async (factoryRecords: any[]) => {
     setActionLoading(true)
     setError(null)
     try {
       const res = await fetch(`/api/orders/${params.id}/confirm-payment`, {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ factory_records: factoryRecords })
       })
       if (!res.ok) {
         const err = await res.json()
@@ -475,6 +477,7 @@ export default function OrderDetailPage() {
           <FactorySelector
             value={order.factory_records || []}
             showConfirm
+            hideAmount
             onConfirm={handlePlaceOrder}
             confirmText={actionLoading ? '下单中...' : '确认下单'}
           />
@@ -485,13 +488,16 @@ export default function OrderDetailPage() {
       {order.status === 'pending_payment' && isOwnerOrManager && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">待打款</h2>
-          <button
-            onClick={handleConfirmPayment}
-            disabled={actionLoading}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-          >
-            确认打款
-          </button>
+          <p className="text-sm text-gray-500 mb-4">
+            请填写各工厂的打款金额，确认后订单进入待出货阶段
+          </p>
+          <FactorySelector
+            value={order.factory_records || []}
+            showConfirm
+            onConfirm={handleConfirmPayment}
+            confirmText={actionLoading ? '处理中...' : '确认打款'}
+          />
+          {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
         </div>
       )}
 

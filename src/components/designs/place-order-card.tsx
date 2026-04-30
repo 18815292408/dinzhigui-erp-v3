@@ -60,6 +60,7 @@ export function PlaceOrderCard({ orderId, customerId, initialValue }: PlaceOrder
         <FactorySelector
           value={initialValue}
           showConfirm
+          hideAmount
           onConfirm={handleConfirm}
           confirmText={submitting ? '下单中...' : '确认下单'}
         />

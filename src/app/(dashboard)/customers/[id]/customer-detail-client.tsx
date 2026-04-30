@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TransferDesignButton } from '@/components/customers/transfer-design-button'
 import { BackButton } from '@/components/ui/back-button'
 import { OrderStatusFlow } from '@/components/orders/order-status-flow'
+import { FactorySelector } from '@/components/orders/factory-selector'
 import { formatMoney } from '@/lib/format-amount'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -91,7 +92,7 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
     }
   }
 
-  const handleConfirmPaymentOnly = async () => {
+  const handleConfirmPaymentOnly = async (factoryRecords?: any[]) => {
     if (!order?.id) return
     setActionLoading(true)
     setActionError(null)
@@ -100,6 +101,7 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ factory_records: factoryRecords }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -375,7 +377,6 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
                 </a>
               </div>
             )}
-
             {/* pending_payment：店长确认打款并指派安装师傅 */}
             {order.status === 'pending_payment' && (
               <div className="p-4 bg-yellow-50 rounded-lg space-y-3">
@@ -383,29 +384,26 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
                   方案已下单，请确认打款
                 </p>
 
-                {/* 工厂下单明细 */}
+                {/* 工厂金额编辑（老板/店长可编辑金额并确认打款） */}
                 {Array.isArray(order.factory_records) && order.factory_records.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-yellow-900">工厂下单明细</h4>
-                    <div className="bg-white rounded-lg p-3 space-y-2">
-                      {order.factory_records.map((record: any, idx: number) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-yellow-800">{record.factory_name}</span>
-                          <span className="font-medium text-yellow-900">{formatMoney(record.amount)}</span>
-                        </div>
-                      ))}
-                      <div className="flex justify-between text-sm font-bold border-t border-yellow-200 pt-2">
-                        <span>打款合计</span>
-                        <span className="text-red-600">
-                          {formatMoney(
-                            order.factory_records.reduce(
-                              (sum: number, r: any) => sum + (Number(r.amount) || 0),
-                              0
-                            )
-                          )}
-                        </span>
+                  <div className="bg-white rounded-lg p-3">
+                    {user && ['owner', 'manager'].includes(user.role) ? (
+                      <FactorySelector
+                        value={order.factory_records}
+                        showConfirm
+                        onConfirm={handleConfirmPaymentOnly}
+                        confirmText={actionLoading ? '处理中...' : '确认打款'}
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {order.factory_records.map((record: any, idx: number) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <span>{record.factory_name}</span>
+                            <span className="font-medium">{formatMoney(record.amount)}</span>
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -425,19 +423,8 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
                   </div>
                 </div>
 
-                {user && ['owner', 'manager'].includes(user.role) && (
-                  <>
-                    <button
-                      onClick={handleConfirmPaymentOnly}
-                      disabled={actionLoading}
-                      className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50 text-sm font-medium"
-                    >
-                      {actionLoading ? '处理中...' : '确认打款'}
-                    </button>
-                    {actionError && (
-                      <p className="text-sm text-red-600">{actionError}</p>
-                    )}
-                  </>
+                {actionError && (
+                  <p className="text-sm text-red-600">{actionError}</p>
                 )}
               </div>
             )}

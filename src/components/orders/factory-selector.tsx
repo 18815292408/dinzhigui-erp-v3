@@ -33,6 +33,8 @@ interface FactorySelectorProps {
   onConfirm?: (selected: FactoryRecord[]) => void
   /** 确认按钮文字 */
   confirmText?: string
+  /** 隐藏金额输入（设计师下单时不用填金额） */
+  hideAmount?: boolean
 }
 
 export const FactorySelector = forwardRef<FactorySelectorHandle, FactorySelectorProps>(function FactorySelector({
@@ -41,6 +43,7 @@ export const FactorySelector = forwardRef<FactorySelectorHandle, FactorySelector
   showConfirm = false,
   onConfirm,
   confirmText = '确认下单',
+  hideAmount = false,
 }, ref) {
   // 数据库存元，界面用万元编辑和显示
   function toWanRecords(records: FactoryRecord[]): FactoryRecord[] {
@@ -134,16 +137,18 @@ export const FactorySelector = forwardRef<FactorySelectorHandle, FactorySelector
                   删除
                 </button>
               </div>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  placeholder="金额（万）"
-                  value={record.amount || ''}
-                  onChange={(e) => updateAmount(index, parseFloat(e.target.value) || 0)}
-                  className="flex-1 px-3 py-2 border rounded-lg"
-                />
-                <span className="text-sm text-muted-foreground whitespace-nowrap">万</span>
-              </div>
+              {!hideAmount && (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    placeholder="金额（万）"
+                    value={record.amount || ''}
+                    onChange={(e) => updateAmount(index, parseFloat(e.target.value) || 0)}
+                    className="flex-1 px-3 py-2 border rounded-lg"
+                  />
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">万</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
