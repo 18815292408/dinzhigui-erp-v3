@@ -51,10 +51,10 @@ export async function PUT(
   const body = await request.json()
   const adminSupabase = await createAdminClient()
 
-  // 获取当前安装单状态
+  // 获取当前安装单状态和反馈
   const { data: current, error: fetchError } = await adminSupabase
     .from('installations')
-    .select('status')
+    .select('status, feedback')
     .eq('id', params.id)
     .eq('organization_id', user.organization_id)
     .single()
@@ -67,9 +67,10 @@ export async function PUT(
   const currentStatus = current.status
 
   // 工作流程校验
-  // 1. 进行中 → 已完成：需要填写安装反馈
+  // 1. 进行中 → 已完成：至少有一条反馈记录
   if (currentStatus === 'in_progress' && newStatus === 'completed') {
-    if (!body.feedback) {
+    const feedbackRecords = Array.isArray(body.feedback) ? body.feedback : []
+    if (feedbackRecords.length === 0) {
       return NextResponse.json({ error: '完成安装前必须填写安装反馈' }, { status: 400 })
     }
   }

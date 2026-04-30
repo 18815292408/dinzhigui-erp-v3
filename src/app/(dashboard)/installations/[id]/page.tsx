@@ -177,10 +177,19 @@ export default async function InstallationDetailPage({ params }: { params: { id:
               {statusLabels[installation.status] || installation.status}
             </div>
           </div>
-          {installation.feedback && (
+          {Array.isArray(installation.feedback) && installation.feedback.length > 0 && (
             <div className="mt-4">
-              <span className="text-muted-foreground">反馈：</span>
-              <p className="text-sm mt-1">{installation.feedback}</p>
+              <span className="text-muted-foreground">反馈记录：</span>
+              <div className="space-y-2 mt-2">
+                {installation.feedback.map((r: any, i: number) => (
+                  <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm">{r.content}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
@@ -197,6 +206,7 @@ export default async function InstallationDetailPage({ params }: { params: { id:
             installationStatus={installation.orders?.installation_status || 'pending_ship'}
             estimatedShipmentDate={installation.orders?.estimated_shipment_date || null}
             canEdit={canEdit}
+            feedbackRecords={installation.feedback}
           />
         </CardContent>
       </Card>
