@@ -115,10 +115,10 @@ export async function POST(request: NextRequest) {
 
   console.log('Auth user created:', authUser.id, 'role:', role)
 
-  // For owner/manager role: create NEW organization (each boss/manager represents a new store)
-  // For other roles: use current user's organization
+  // For owner role: create NEW organization (each boss represents a new store)
+  // For other roles (including manager): use current user's organization
   let organizationId = currentUser.organization_id
-  if (role === 'owner' || role === 'manager') {
+  if (role === 'owner') {
     // Generate new UUID for new store's organization
     organizationId = crypto.randomUUID()
 
