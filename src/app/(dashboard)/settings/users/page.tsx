@@ -11,7 +11,18 @@ export default async function UsersPage() {
   const sessionCookie = cookieStore.get('session')
 
   const user = parseSessionUser(sessionCookie?.value || '')
-  const canManageUsers = user && (user.role === 'owner' || user.can_manage_users)
+
+  // Sync can_manage_users from DB (cookie may be stale)
+  let canManageUsers = user && user.role === 'owner'
+  if (user && user.role !== 'owner') {
+    const adminSupabase = await createAdminClient()
+    const { data: profile } = await adminSupabase
+      .from('users')
+      .select('can_manage_users')
+      .eq('id', user.id)
+      .single()
+    canManageUsers = profile?.can_manage_users ?? false
+  }
 
   if (!canManageUsers) {
     redirect('/dashboard')

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { createAdminClient } from '@/lib/supabase/server'
 import { UserForm } from '@/components/settings/user-form'
 import { BackButton } from '@/components/ui/back-button'
 import { parseSessionUser } from '@/lib/types'
@@ -17,8 +18,19 @@ export default async function NewUserPage() {
     redirect('/login')
   }
 
-  // Only owner or manager with can_manage_users can create accounts
-  if (user.role !== 'owner' && !user.can_manage_users) {
+  // Sync can_manage_users from DB (cookie may be stale)
+  let canManageUsers = user.role === 'owner'
+  if (user.role !== 'owner') {
+    const adminSupabase = await createAdminClient()
+    const { data: profile } = await adminSupabase
+      .from('users')
+      .select('can_manage_users')
+      .eq('id', user.id)
+      .single()
+    canManageUsers = profile?.can_manage_users ?? false
+  }
+
+  if (!canManageUsers) {
     redirect('/dashboard')
   }
 
