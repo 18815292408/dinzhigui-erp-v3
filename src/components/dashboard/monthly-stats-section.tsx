@@ -49,6 +49,22 @@ interface DesignerOrderDetail {
   }[]
 }
 
+interface DesignerReceivedDetail {
+  id: string
+  order_no: string
+  customer_name: string
+  signed_at: string | null
+  signed_amount: number
+}
+
+interface DesignerReceivedStat {
+  id: string
+  name: string
+  received_count: number
+  received_amount: number
+  orders: DesignerReceivedDetail[]
+}
+
 interface DesignerStat {
   id: string
   name: string
@@ -61,11 +77,14 @@ interface MonthlyStats {
   year: number
   month: number
   sales: SalesPerson[]
+  designerReceived: DesignerReceivedStat[]
   designers: DesignerStat[]
   summary: {
     sales_order_count: number
     sales_signed_amount: number
     sales_paid_amount: number
+    designer_received_count: number
+    designer_received_amount: number
     designer_order_count: number
     designer_order_amount: number
   }
@@ -100,6 +119,7 @@ export function MonthlyStatsSection() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedSales, setExpandedSales] = useState<string | null>(null)
+  const [expandedDesignerReceived, setExpandedDesignerReceived] = useState<string | null>(null)
   const [expandedDesigner, setExpandedDesigner] = useState<string | null>(null)
 
   useEffect(() => {
@@ -121,6 +141,7 @@ export function MonthlyStatsSection() {
       const data = await res.json()
       setStats(data)
       setExpandedSales(null)
+      setExpandedDesignerReceived(null)
       setExpandedDesigner(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : '获取统计数据失败')
@@ -203,8 +224,12 @@ export function MonthlyStatsSection() {
                 <SummaryCard label="签单数" value={stats.summary.sales_order_count} />
                 <SummaryCard label="签单金额" value={formatCurrency(stats.summary.sales_signed_amount)} tone="text-blue-700" />
                 <SummaryCard label="收款金额" value={formatCurrency(stats.summary.sales_paid_amount)} tone="text-green-700" />
-                <SummaryCard label="下单数" value={stats.summary.designer_order_count} />
-                <SummaryCard label="下单总金额" value={formatCurrency(stats.summary.designer_order_amount)} tone="text-orange-700" />
+                <SummaryCard label="设计师接单数" value={stats.summary.designer_received_count} />
+                <SummaryCard label="设计师接单金额" value={formatCurrency(stats.summary.designer_received_amount)} tone="text-purple-700" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <SummaryCard label="设计师下单数" value={stats.summary.designer_order_count} />
+                <SummaryCard label="设计师下单总金额" value={formatCurrency(stats.summary.designer_order_amount)} tone="text-orange-700" />
               </div>
 
               <div className="space-y-3">
@@ -292,7 +317,61 @@ export function MonthlyStatsSection() {
               </div>
 
               <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">设计师下单业绩</h4>
+                <h4 className="text-sm font-medium text-muted-foreground">设计师接单业绩</h4>
+                {stats.designerReceived.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>设计师</TableHead>
+                        <TableHead className="text-right">接单数</TableHead>
+                        <TableHead className="text-right">接单金额</TableHead>
+                        <TableHead className="w-20 text-right">明细</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stats.designerReceived.map((designer) => (
+                        <Fragment key={designer.id}>
+                          <TableRow>
+                            <TableCell className="font-medium">{designer.name}</TableCell>
+                            <TableCell className="text-right">{designer.received_count}</TableCell>
+                            <TableCell className="text-right text-purple-700">{formatCurrency(designer.received_amount)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setExpandedDesignerReceived(expandedDesignerReceived === designer.id ? null : designer.id)}
+                              >
+                                {expandedDesignerReceived === designer.id ? '收起' : '展开'}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {expandedDesignerReceived === designer.id && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="bg-muted/30">
+                                <div className="space-y-2 p-2">
+                                  {designer.orders.map((order) => (
+                                    <div key={order.id} className="grid grid-cols-4 gap-2 text-sm">
+                                      <span>{order.order_no}</span>
+                                      <span>{order.customer_name}</span>
+                                      <span>{formatDate(order.signed_at)}</span>
+                                      <span className="text-right text-purple-700">{formatCurrency(order.signed_amount)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-2 text-center">暂无设计师接单数据</p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground">设计师下单到工厂业绩</h4>
                 {stats.designers.length > 0 ? (
                   <Table>
                     <TableHeader>

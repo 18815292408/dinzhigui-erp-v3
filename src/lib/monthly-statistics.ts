@@ -79,6 +79,7 @@ function orderAmount(order: OrderLike) {
 export function buildMonthlyStatistics({ year, month, orders, users }: MonthlyStatisticsInput) {
   const names = userNameById(users)
   const salesById: Record<string, any> = {}
+  const designerReceivedById: Record<string, any> = {}
   const designerById: Record<string, any> = {}
 
   for (const order of orders) {
@@ -132,6 +133,28 @@ export function buildMonthlyStatistics({ year, month, orders, users }: MonthlySt
       })
     }
 
+    if (isInMonth(order.created_at, year, month) && order.assigned_designer) {
+      const designerId = order.assigned_designer
+      designerReceivedById[designerId] ||= {
+        id: designerId,
+        name: names.get(designerId) || '未知',
+        received_count: 0,
+        received_amount: 0,
+        orders: [],
+      }
+
+      const signedAmount = toAmount(order.signed_amount)
+      designerReceivedById[designerId].received_count += 1
+      designerReceivedById[designerId].received_amount += signedAmount
+      designerReceivedById[designerId].orders.push({
+        id: order.id,
+        order_no: order.order_no,
+        customer_name: order.customer_name || '未知',
+        signed_at: order.created_at,
+        signed_amount: signedAmount,
+      })
+    }
+
     const factoryRecords = parseFactoryRecords(order.factory_records)
     if (factoryRecords.length > 0 && isInMonth(order.updated_at, year, month)) {
       const designerId = order.assigned_designer || order.design_created_by || 'unknown-designer'
@@ -161,17 +184,21 @@ export function buildMonthlyStatistics({ year, month, orders, users }: MonthlySt
   }
 
   const sales = Object.values(salesById)
+  const designerReceived = Object.values(designerReceivedById)
   const designers = Object.values(designerById)
 
   return {
     year,
     month,
     sales,
+    designerReceived,
     designers,
     summary: {
       sales_order_count: sales.reduce((sum, item: any) => sum + item.signed_count, 0),
       sales_signed_amount: sales.reduce((sum, item: any) => sum + item.signed_amount, 0),
       sales_paid_amount: sales.reduce((sum, item: any) => sum + item.paid_amount, 0),
+      designer_received_count: designerReceived.reduce((sum, item: any) => sum + item.received_count, 0),
+      designer_received_amount: designerReceived.reduce((sum, item: any) => sum + item.received_amount, 0),
       designer_order_count: designers.reduce((sum, item: any) => sum + item.order_count, 0),
       designer_order_amount: designers.reduce((sum, item: any) => sum + item.total_amount, 0),
     },
