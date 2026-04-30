@@ -19,6 +19,7 @@ type ProcessOrder = {
   stageLabel: string
   nextAction: string
   href: string
+  customerId: string | null
   salesName: string
   designerName: string
   installerName: string
@@ -93,13 +94,19 @@ export function ProcessOrderTable({ orders }: { orders: ProcessOrder[] }) {
                   {formatTime(order.updatedAt)}
                 </TableCell>
                 <TableCell>
-                  <Link
-                    href={`${order.href}/${order.id}`}
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    {order.nextAction}
-                    <ArrowRight className="h-3 w-3" />
-                  </Link>
+                  {order.customerId ? (
+                    <Link
+                      href={`/customers/${order.customerId}`}
+                      className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                    >
+                      {order.nextAction}
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                      {order.nextAction}
+                    </span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

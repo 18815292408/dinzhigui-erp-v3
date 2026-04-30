@@ -42,6 +42,23 @@ export async function GET(
     order.assigned_installer_user = u.data
   }
 
+  // 补全客户信息：若 orders 表中字段为空，通过 customer_name 从 customers 表查
+  if (!order.customer_phone || !order.customer_address || !order.house_type || !order.house_area) {
+    const { data: customer } = await adminSupabase
+      .from('customers')
+      .select('phone, address, house_type, house_area')
+      .eq('name', order.customer_name)
+      .eq('organization_id', user.organization_id)
+      .maybeSingle()
+
+    if (customer) {
+      order.customer_phone = order.customer_phone || customer.phone
+      order.customer_address = order.customer_address || customer.address
+      order.house_type = order.house_type || customer.house_type
+      order.house_area = order.house_area || customer.house_area
+    }
+  }
+
   return NextResponse.json(order)
 }
 

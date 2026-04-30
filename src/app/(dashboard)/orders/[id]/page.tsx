@@ -313,8 +313,9 @@ export default function OrderDetailPage() {
 
   const designers = users.filter(u => u.role === 'designer')
   const installers = users.filter(u => u.role === 'installer')
-  const canPerformActions = currentUser && !['owner', 'manager'].includes(currentUser.role)
+  const isOwnerOrManager = currentUser && ['owner', 'manager'].includes(currentUser.role)
   const isAssignedDesigner = currentUser?.id === order.assigned_designer_user?.id
+  const isAssignedInstaller = currentUser?.id === order.assigned_installer_user?.id
   const design = order.designs?.[0]
 
   return (
@@ -449,7 +450,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* 派单 */}
-      {order.status === 'pending_dispatch' && canPerformActions && (
+      {order.status === 'pending_dispatch' && isOwnerOrManager && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">派单给设计师</h2>
           <div className="flex flex-wrap gap-2">
@@ -468,7 +469,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* 待下单 */}
-      {order.status === 'pending_order' && canPerformActions && (
+      {order.status === 'pending_order' && isAssignedDesigner && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">下单至工厂</h2>
           <FactorySelector
@@ -481,7 +482,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* 待打款 */}
-      {order.status === 'pending_payment' && canPerformActions && (
+      {order.status === 'pending_payment' && isOwnerOrManager && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">待打款</h2>
           <button
@@ -495,7 +496,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* 待出货：填写出货时间即可，安装师傅已在确认打款时指派 */}
-      {order.status === 'pending_shipment' && canPerformActions && (
+      {order.status === 'pending_shipment' && (isOwnerOrManager || isAssignedInstaller) && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">填写出货时间</h2>
           <div className="space-y-4">
@@ -528,7 +529,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* 安装中 */}
-      {order.status === 'in_install' && canPerformActions && (
+      {order.status === 'in_install' && isAssignedInstaller && (
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4">安装进度</h2>
           <p className="text-gray-500 mb-4">当前状态：{INSTALLATION_STATUS_LABELS[order.installation_status]}</p>

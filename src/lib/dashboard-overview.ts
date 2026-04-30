@@ -68,13 +68,13 @@ const FLOW_CARDS: FlowCard[] = [
 ]
 
 const STAGE_META: Record<string, { label: string; nextAction: string; href: string }> = {
-  pending_dispatch: { label: '待派单', nextAction: '分配设计师', href: '/orders' },
-  pending_design: { label: '待接单', nextAction: '设计师接单', href: '/orders' },
-  designing: { label: '设计中', nextAction: '提交方案', href: '/orders' },
-  pending_order: { label: '待下单', nextAction: '下单工厂', href: '/orders' },
-  pending_payment: { label: '待打款', nextAction: '确认打款', href: '/orders' },
-  pending_shipment: { label: '待出货', nextAction: '填写出货/指派安装', href: '/orders' },
-  in_install: { label: '安装中', nextAction: '更新安装进度', href: '/orders' },
+  pending_dispatch: { label: '待派单', nextAction: '分配设计师', href: '/customers' },
+  pending_design: { label: '待接单', nextAction: '设计师接单', href: '/customers' },
+  designing: { label: '设计中', nextAction: '提交方案', href: '/customers' },
+  pending_order: { label: '待下单', nextAction: '下单工厂', href: '/customers' },
+  pending_payment: { label: '待打款', nextAction: '确认打款', href: '/customers' },
+  pending_shipment: { label: '待出货', nextAction: '填写出货/指派安装', href: '/customers' },
+  in_install: { label: '安装中', nextAction: '更新安装进度', href: '/customers' },
 }
 
 function toAmount(value: number | string | null | undefined) {
@@ -103,10 +103,12 @@ function orderAmount(order: DashboardOrder) {
 export function buildDashboardOverview({
   orders,
   users,
+  customerMap = {},
   now = new Date(),
 }: {
   orders: DashboardOrder[]
   users: DashboardUser[]
+  customerMap?: Record<string, string>
   now?: Date
 }) {
   const names = userNameMap(users)
@@ -140,6 +142,7 @@ export function buildDashboardOverview({
         stageLabel: meta.label,
         nextAction: meta.nextAction,
         href: meta.href,
+        customerId: customerMap[order.id] || null,
         salesName: order.created_by ? names.get(order.created_by) || '未知' : '未指派',
         designerName: order.assigned_designer ? names.get(order.assigned_designer) || '未指派' : '未指派',
         installerName: order.assigned_installer ? names.get(order.assigned_installer) || '未指派' : '未指派',

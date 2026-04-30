@@ -46,7 +46,7 @@ async function getDashboardData() {
   if (!orders || orders.length === 0) {
     return {
       userRole: user.role,
-      overview: buildDashboardOverview({ orders: [], users: [] }),
+      overview: buildDashboardOverview({ orders: [], users: [], customerMap: {} }),
     }
   }
 
@@ -66,9 +66,48 @@ async function getDashboardData() {
         .in('id', Array.from(userIds))
     : { data: [] }
 
+  // 构建 order_id -> customer_id 映射（优先通过 designs 表关联）
+  const orderIds = orders.map(o => o.id)
+  const { data: designs } = await adminSupabase
+    .from('designs')
+    .select('order_id, customer_id')
+    .in('order_id', orderIds)
+
+  const customerMap: Record<string, string> = {}
+  // 优先使用 designs 表的关联
+  for (const d of (designs || [])) {
+    if (d.order_id && d.customer_id && !customerMap[d.order_id]) {
+      customerMap[d.order_id] = d.customer_id
+    }
+  }
+  // 对于没有 design 关联的，通过 customer_name 查 customers 表兜底
+  const missingOrderIds = orderIds.filter(id => !customerMap[id])
+  if (missingOrderIds.length > 0) {
+    const missingNames = Array.from(new Set(orders.filter(o => missingOrderIds.includes(o.id)).map(o => o.customer_name).filter(Boolean)))
+    if (missingNames.length > 0) {
+      const { data: customers } = await adminSupabase
+        .from('customers')
+        .select('id, name')
+        .in('name', missingNames)
+        .eq('organization_id', orgId)
+      const nameToId: Record<string, string> = {}
+      for (const c of (customers || [])) {
+        if (c.name && !nameToId[c.name]) {
+          nameToId[c.name] = c.id
+        }
+      }
+      for (const o of orders) {
+        if (!customerMap[o.id] && nameToId[o.customer_name]) {
+          customerMap[o.id] = nameToId[o.customer_name]
+        }
+      }
+    }
+  }
+
   const overview = buildDashboardOverview({
     orders: orders || [],
     users: users || [],
+    customerMap,
   })
 
   return {

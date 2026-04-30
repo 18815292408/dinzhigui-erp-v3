@@ -148,7 +148,7 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
               </div>
               <div>
                 <span className="text-muted-foreground">设计师：</span>
-                {order.assigned_designer_user?.name || '未指派'}
+                {order.assigned_designer_user?.display_name || '未指派'}
               </div>
               <div>
                 <span className="text-muted-foreground">签单金额：</span>
