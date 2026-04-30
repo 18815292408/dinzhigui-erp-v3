@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { UserList } from '@/components/settings/user-list'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,11 @@ export default async function UsersPage() {
   const sessionCookie = cookieStore.get('session')
 
   const user = parseSessionUser(sessionCookie?.value || '')
-  const canCreateUser = user && ['owner'].includes(user.role)
+  const canManageUsers = user && (user.role === 'owner' || user.can_manage_users)
+
+  if (!canManageUsers) {
+    redirect('/dashboard')
+  }
 
   const adminSupabase = await createAdminClient()
   const { data: users } = user
@@ -28,14 +33,14 @@ export default async function UsersPage() {
           <h1 className="text-2xl font-semibold">账号管理</h1>
           <p className="text-muted-foreground">管理门店员工账号</p>
         </div>
-        {canCreateUser && (
+        {canManageUsers && (
           <Link href="/settings/users/new">
             <Button>+ 添加员工</Button>
           </Link>
         )}
       </div>
 
-      <UserList users={users || []} currentUserId={user?.id} />
+      <UserList users={users || []} currentUserId={user?.id} currentUserRole={user?.role} />
     </div>
   )
 }

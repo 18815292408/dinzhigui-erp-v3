@@ -23,6 +23,7 @@ interface NavItem {
   roles: string[]
   section: 'top' | 'workflow' | 'settings'
   adminOnly?: boolean
+  requiresManageUsers?: boolean
 }
 
 const navigation: NavItem[] = [
@@ -33,11 +34,11 @@ const navigation: NavItem[] = [
   { name: '已完成订单', href: '/completed-orders', icon: CheckCircle, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'workflow' },
   { name: '工厂管理', href: '/factories', icon: Factory, roles: ['owner', 'manager'], section: 'settings' },
   { name: '消息中心', href: '/notifications', icon: Bell, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'settings' },
-  { name: '账号管理', href: '/settings/users', icon: Settings, roles: ['owner'], section: 'settings' },
+  { name: '账号管理', href: '/settings/users', icon: Settings, roles: ['owner', 'manager'], section: 'settings', requiresManageUsers: true },
   { name: '管理员面板', href: '/settings/admin', icon: Shield, roles: ['owner'], section: 'settings', adminOnly: true },
 ]
 
-export function Sidebar({ userRole, userEmail }: { userRole: string; userEmail: string }) {
+export function Sidebar({ userRole, userEmail, canManageUsers }: { userRole: string; userEmail: string; canManageUsers?: boolean }) {
   const pathname = usePathname()
 
   return (
@@ -60,7 +61,7 @@ export function Sidebar({ userRole, userEmail }: { userRole: string; userEmail: 
         {/* 数据看板 - 独立置顶 */}
         <div className="space-y-1">
           {navigation
-            .filter((item) => item.section === 'top' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL))
+            .filter((item) => item.section === 'top' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL) && (!item.requiresManageUsers || userRole === 'owner' || canManageUsers))
             .map((item) => {
               const isActive = pathname === item.href
               const Icon = item.icon

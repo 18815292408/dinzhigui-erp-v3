@@ -1,15 +1,18 @@
-// Owner updates staff user info (password, name, email, phone, role)
+// User management API - owner or delegated manager can modify staff
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireSession } from '@/lib/auth'
+
+function canManageUsers(session: any): boolean {
+  return session.role === 'owner' || session.can_manage_users === true
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await requireSession()
   if (session instanceof NextResponse) return session
 
-  // Only owner can modify staff
-  if (session.role !== 'owner') {
-    return NextResponse.json({ error: '只有老板才能修改员工信息' }, { status: 403 })
+  if (!canManageUsers(session)) {
+    return NextResponse.json({ error: '无权限修改员工信息' }, { status: 403 })
   }
 
   const adminSupabase = await createAdminClient()
@@ -31,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 
   const body = await request.json()
-  const { display_name, email, phone, role, password } = body
+  const { display_name, email, phone, role, password, can_manage_users } = body
 
   // Owner accounts: can only edit self, and only password
   if (targetUser.role === 'owner') {
@@ -44,11 +47,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
   }
 
-  // Validate: email or phone required
-  const newEmail = email !== undefined ? (email || null) : targetUser.email
-  const newPhone = phone !== undefined ? (phone || null) : targetUser.phone
-  if (!newEmail && !newPhone) {
-    return NextResponse.json({ error: '邮箱和手机号不能同时为空' }, { status: 400 })
+  // Manager cannot modify owner accounts
+  if (targetUser.role === 'owner' && session.role !== 'owner') {
+    return NextResponse.json({ error: '无权修改老板账号' }, { status: 403 })
+  }
+
+  // Manager cannot change their own can_manage_users
+  if (can_manage_users !== undefined && targetUser.id === session.id && session.role !== 'owner') {
+    return NextResponse.json({ error: '不能修改自己的账号管理权限' }, { status: 403 })
+  }
+
+  // Validate: email or phone required (skip for owner self-edit)
+  if (targetUser.role !== 'owner' || targetUser.id !== session.id) {
+    const newEmail = email !== undefined ? (email || null) : targetUser.email
+    const newPhone = phone !== undefined ? (phone || null) : targetUser.phone
+    if (!newEmail && !newPhone) {
+      return NextResponse.json({ error: '邮箱和手机号不能同时为空' }, { status: 400 })
+    }
   }
 
   // Validate role
@@ -70,6 +85,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (email !== undefined) updates.email = email || null
   if (phone !== undefined) updates.phone = phone || null
   if (role !== undefined) updates.role = role
+  if (can_manage_users !== undefined) updates.can_manage_users = can_manage_users
 
   const { error: updateError } = await adminSupabase
     .from('users')
@@ -113,13 +129,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json({ success: true })
 }
 
-// Owner deletes staff user
+// Delete user - owner or delegated manager
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await requireSession()
   if (session instanceof NextResponse) return session
 
-  if (session.role !== 'owner') {
-    return NextResponse.json({ error: '只有老板才能删除员工账号' }, { status: 403 })
+  if (!canManageUsers(session)) {
+    return NextResponse.json({ error: '无权限删除员工账号' }, { status: 403 })
   }
 
   // Cannot delete self

@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '登录已过期，请重新登录' }, { status: 401 })
   }
 
-  // Only owner and manager can create users
-  if (!['owner', 'manager'].includes(currentUser.role)) {
+  // Only owner or manager with can_manage_users can create users
+  if (currentUser.role !== 'owner' && !currentUser.can_manage_users) {
     return NextResponse.json({ error: '无权限创建账号' }, { status: 403 })
   }
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   // Only owner can create manager/owner accounts
   if (['owner', 'manager'].includes(role) && currentUser.role !== 'owner') {
-    return NextResponse.json({ error: '只有管理员可以创建老板/店长账号' }, { status: 403 })
+    return NextResponse.json({ error: '只有老板可以创建老板/店长账号' }, { status: 403 })
   }
 
   // Valid roles for creation

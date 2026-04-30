@@ -13,6 +13,7 @@ export interface SessionUser {
   name: string
   role: 'owner' | 'manager' | 'designer' | 'sales' | 'installer'
   organization_id: string
+  can_manage_users?: boolean
 }
 
 export function parseSessionUser(cookieValue: string): SessionUser | null {

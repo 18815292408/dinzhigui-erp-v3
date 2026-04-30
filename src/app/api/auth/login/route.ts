@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
       name: profile?.display_name || profile?.name || data.user.email || '用户',
       role: profile?.role || 'owner',
       organization_id: profile?.organization_id,
+      can_manage_users: profile?.role === 'owner' ? true : (profile?.can_manage_users ?? false),
     }
 
     const sessionData = Buffer.from(JSON.stringify(user)).toString('base64')

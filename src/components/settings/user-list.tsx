@@ -28,18 +28,30 @@ const roleColors: Record<string, string> = {
   installer: 'bg-orange-100 text-orange-800',
 }
 
-function EditModal({ user, isSelf, onClose, onDeleted }: { user: any; isSelf?: boolean; onClose: () => void; onDeleted: () => void }) {
+function EditModal({ user, isSelf, currentUserRole, onClose, onDeleted }: {
+  user: any
+  isSelf?: boolean
+  currentUserRole?: string
+  onClose: () => void
+  onDeleted: () => void
+}) {
   const [form, setForm] = useState({
     display_name: user.display_name || '',
     email: user.email || '',
     phone: user.phone || '',
     role: user.role,
     password: '',
+    can_manage_users: user.can_manage_users || false,
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const isOwnerSelf = isSelf && user.role === 'owner'
+  // Show can_manage_users toggle when:
+  // - Current user is owner
+  // - Target user is manager
+  // - Target user is NOT editing themselves
+  const showManageToggle = currentUserRole === 'owner' && user.role === 'manager' && !isSelf
 
   const handleSave = async () => {
     setError('')
@@ -76,6 +88,7 @@ function EditModal({ user, isSelf, onClose, onDeleted }: { user: any; isSelf?: b
         body.phone = form.phone || null
         body.role = form.role
         if (form.password) body.password = form.password
+        if (showManageToggle) body.can_manage_users = form.can_manage_users
       }
 
       const res = await fetch(`/api/users/${user.id}`, {
@@ -172,6 +185,25 @@ function EditModal({ user, isSelf, onClose, onDeleted }: { user: any; isSelf?: b
                 </select>
               </div>
 
+              {showManageToggle && (
+                <div className="flex items-center justify-between py-2 px-3 border rounded-md bg-gray-50">
+                  <label className="text-sm font-medium">账号管理权限</label>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, can_manage_users: !form.can_manage_users })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      form.can_manage_users ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        form.can_manage_users ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-1">
                 <label className="text-sm font-medium">邮箱</label>
                 <input
@@ -233,7 +265,7 @@ function EditModal({ user, isSelf, onClose, onDeleted }: { user: any; isSelf?: b
   )
 }
 
-export function UserList({ users, currentUserId }: { users: any[]; currentUserId?: string }) {
+export function UserList({ users, currentUserId, currentUserRole }: { users: any[]; currentUserId?: string; currentUserRole?: string }) {
   const [editingUser, setEditingUser] = useState<any>(null)
 
   // Can edit if: not owner, OR is the current owner editing themselves
@@ -269,6 +301,7 @@ export function UserList({ users, currentUserId }: { users: any[]; currentUserId
         <EditModal
           user={editingUser}
           isSelf={editingUser.id === currentUserId}
+          currentUserRole={currentUserRole}
           onClose={() => setEditingUser(null)}
           onDeleted={() => window.location.reload()}
         />
