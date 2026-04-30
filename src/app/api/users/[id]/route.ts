@@ -112,3 +112,99 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   return NextResponse.json({ success: true })
 }
+
+// Owner deletes staff user
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await requireSession()
+  if (session instanceof NextResponse) return session
+
+  if (session.role !== 'owner') {
+    return NextResponse.json({ error: '只有老板才能删除员工账号' }, { status: 403 })
+  }
+
+  // Cannot delete self
+  if (session.id === params.id) {
+    return NextResponse.json({ error: '不能删除自己的账号' }, { status: 400 })
+  }
+
+  const adminSupabase = await createAdminClient()
+
+  // Fetch target user
+  const { data: targetUser } = await adminSupabase
+    .from('users')
+    .select('id, role, organization_id')
+    .eq('id', params.id)
+    .single()
+
+  if (!targetUser) {
+    return NextResponse.json({ error: '用户不存在' }, { status: 404 })
+  }
+
+  // Cannot delete cross-organization users
+  if (targetUser.organization_id !== session.organization_id) {
+    return NextResponse.json({ error: '无权删除其他组织的员工' }, { status: 403 })
+  }
+
+  // Cannot delete owner accounts
+  if (targetUser.role === 'owner') {
+    return NextResponse.json({ error: '不能删除老板账号' }, { status: 403 })
+  }
+
+  const adminUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!adminKey) {
+    return NextResponse.json({ error: '服务器配置错误' }, { status: 500 })
+  }
+
+  // Clear references in orders
+  await adminSupabase
+    .from('orders')
+    .update({ assigned_designer: null })
+    .eq('assigned_designer', params.id)
+
+  await adminSupabase
+    .from('orders')
+    .update({ assigned_installer: null })
+    .eq('assigned_installer', params.id)
+
+  await adminSupabase
+    .from('orders')
+    .update({ created_by: null })
+    .eq('created_by', params.id)
+
+  // Delete notifications
+  await adminSupabase
+    .from('notifications')
+    .delete()
+    .eq('user_id', params.id)
+
+  // Delete designs created by this user
+  await adminSupabase
+    .from('designs')
+    .delete()
+    .eq('created_by', params.id)
+
+  // Delete installations assigned to this user
+  await adminSupabase
+    .from('installations')
+    .delete()
+    .eq('assigned_to', params.id)
+
+  // Delete from users table
+  await adminSupabase
+    .from('users')
+    .delete()
+    .eq('id', params.id)
+
+  // Delete from Auth
+  await fetch(`${adminUrl}/auth/v1/admin/users/${params.id}`, {
+    method: 'DELETE',
+    headers: {
+      'apikey': adminKey,
+      'Authorization': `Bearer ${adminKey}`,
+    } as HeadersInit,
+  })
+
+  return NextResponse.json({ success: true })
+}

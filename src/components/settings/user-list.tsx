@@ -102,13 +102,16 @@ function EditModal({ user, isSelf, onClose, onDeleted }: { user: any; isSelf?: b
     if (!confirm(`确定要删除账号 "${user.display_name}" 吗？此操作不可恢复。`)) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/admin/users/${user.id}`, {
+      const res = await fetch(`/api/users/${user.id}`, {
         method: 'DELETE',
         credentials: 'include',
       })
       if (res.ok) {
         onClose()
         onDeleted()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error || '删除失败')
       }
     } finally {
       setLoading(false)
