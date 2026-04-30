@@ -154,12 +154,14 @@ export function UsersAdminList({ owners, staffByOrg }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editRole, setEditRole] = useState('')
   const [editExpiry, setEditExpiry] = useState<string | null>(null)
+  const [editExpiryDays, setEditExpiryDays] = useState<number | ''>('')
   const [editingLimits, setEditingLimits] = useState<any>(null)
 
   const handleEdit = (user: any) => {
     setEditingId(user.id)
     setEditRole(user.role)
     setEditExpiry(user.expires_at || null)
+    setEditExpiryDays('')
   }
 
   const handleSave = async (userId: string) => {
@@ -237,11 +239,28 @@ export function UsersAdminList({ owners, staffByOrg }: Props) {
                           ? 'bg-blue-100 border-blue-500 text-blue-700'
                           : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
                       }`}
-                      onClick={() => setEditExpiry(opt.hours === -1 ? null : hoursToExpiresAt(opt.hours))}
+                      onClick={() => { setEditExpiry(opt.hours === -1 ? null : hoursToExpiresAt(opt.hours)); setEditExpiryDays('') }}
                     >
                       {opt.label}
                     </button>
                   ))}
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={1}
+                    className="px-2 py-0.5 border rounded text-xs w-20"
+                    placeholder="天数"
+                    value={editExpiryDays}
+                    onChange={(e) => {
+                      const days = e.target.value ? parseInt(e.target.value) : ''
+                      setEditExpiryDays(days)
+                      if (days && days > 0) {
+                        setEditExpiry(hoursToExpiresAt((days as number) * 24))
+                      }
+                    }}
+                  />
+                  <span className="text-xs text-gray-400">天</span>
                 </div>
               </div>
               <Button size="sm" onClick={() => handleSave(u.id)}>保存</Button>
@@ -303,11 +322,28 @@ export function UsersAdminList({ owners, staffByOrg }: Props) {
                               ? 'bg-blue-100 border-blue-500 text-blue-700'
                               : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
                           }`}
-                          onClick={() => setEditExpiry(opt.hours === -1 ? null : hoursToExpiresAt(opt.hours))}
+                          onClick={() => { setEditExpiry(opt.hours === -1 ? null : hoursToExpiresAt(opt.hours)); setEditExpiryDays('') }}
                         >
                           {opt.label}
                         </button>
                       ))}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={1}
+                        className="px-2 py-0.5 border rounded text-xs w-20"
+                        placeholder="天数"
+                        value={editExpiryDays}
+                        onChange={(e) => {
+                          const days = e.target.value ? parseInt(e.target.value) : ''
+                          setEditExpiryDays(days)
+                          if (days && days > 0) {
+                            setEditExpiry(hoursToExpiresAt((days as number) * 24))
+                          }
+                        }}
+                      />
+                      <span className="text-xs text-gray-400">天</span>
                     </div>
                   </div>
                 </div>
