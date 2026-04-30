@@ -29,22 +29,56 @@ const roleColors: Record<string, string> = {
 }
 
 function EditModal({ user, onClose, onDeleted }: { user: any; onClose: () => void; onDeleted: () => void }) {
-  const [role, setRole] = useState(user.role)
+  const [form, setForm] = useState({
+    display_name: user.display_name || '',
+    email: user.email || '',
+    phone: user.phone || '',
+    role: user.role,
+    password: '',
+  })
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSave = async () => {
+    setError('')
+    if (!form.display_name) {
+      setError('请填写员工姓名')
+      return
+    }
+    if (!form.email && !form.phone) {
+      setError('邮箱和手机号不能同时为空')
+      return
+    }
+    if (form.password && form.password.length < 6) {
+      setError('密码至少6位')
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await fetch(`/api/admin/users/${user.id}`, {
+      const body: any = {
+        display_name: form.display_name,
+        email: form.email || null,
+        phone: form.phone || null,
+        role: form.role,
+      }
+      if (form.password) body.password = form.password
+
+      const res = await fetch(`/api/users/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ role }),
+        body: JSON.stringify(body),
       })
-      if (res.ok) {
-        onClose()
-        window.location.reload()
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || '保存失败')
+        return
       }
+      onClose()
+      window.location.reload()
+    } catch (e: any) {
+      setError(e.message || '保存失败')
     } finally {
       setLoading(false)
     }
@@ -67,21 +101,81 @@ function EditModal({ user, onClose, onDeleted }: { user: any; onClose: () => voi
     }
   }
 
+  // Role options exclude owner (cannot change staff to owner)
+  const editableRoles = Object.entries(roleLabels).filter(([value]) => value !== 'owner')
+
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 p-6 w-80 space-y-4">
+      <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 p-6 w-96 space-y-4 max-h-[90vh] overflow-y-auto">
         <h3 className="font-semibold">编辑账号</h3>
         <p className="text-sm text-muted-foreground">{user.display_name}</p>
-        <select
-          className="w-full px-3 py-2 border rounded-md"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        >
-          {Object.entries(roleLabels).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-        <div className="flex gap-2 justify-between">
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">员工姓名</label>
+            <input
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              value={form.display_name}
+              onChange={(e) => setForm({ ...form, display_name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">角色</label>
+            <select
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+            >
+              {editableRoles.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">邮箱</label>
+            <input
+              type="email"
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="与手机二选一"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">手机号</label>
+            <input
+              type="tel"
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="与邮箱二选一"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">新密码</label>
+            <input
+              type="password"
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              placeholder="留空则不修改密码"
+            />
+            <p className="text-xs text-muted-foreground">如需修改密码请填写，至少6位</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 justify-between pt-2">
           <Button
             variant="ghost"
             size="sm"
@@ -92,8 +186,10 @@ function EditModal({ user, onClose, onDeleted }: { user: any; onClose: () => voi
             删除
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
-            <Button size="sm" onClick={handleSave} disabled={loading}>保存</Button>
+            <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>取消</Button>
+            <Button size="sm" onClick={handleSave} disabled={loading}>
+              {loading ? '保存中...' : '保存'}
+            </Button>
           </div>
         </div>
       </div>
