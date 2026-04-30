@@ -15,6 +15,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '登录已过期，请重新登录' }, { status: 401 })
   }
 
+  // Sync can_manage_users from DB (cookie may be stale)
+  if (currentUser.role !== 'owner') {
+    const adminSupabase = await createAdminClient()
+    const { data: self } = await adminSupabase
+      .from('users')
+      .select('can_manage_users')
+      .eq('id', currentUser.id)
+      .single()
+    currentUser.can_manage_users = self?.can_manage_users ?? false
+  }
+
   // Only owner or manager with can_manage_users can create users
   if (currentUser.role !== 'owner' && !currentUser.can_manage_users) {
     return NextResponse.json({ error: '无权限创建账号' }, { status: 403 })

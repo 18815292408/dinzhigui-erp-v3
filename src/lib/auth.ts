@@ -21,11 +21,11 @@ export async function requireSession(): Promise<SessionUser | NextResponse> {
     return NextResponse.json({ error: '登录已过期，请重新登录' }, { status: 401 })
   }
 
-  // Check if account has expired
+  // Check expiry and sync can_manage_users from DB
   const adminSupabase = await createAdminClient()
   const { data: profile } = await adminSupabase
     .from('users')
-    .select('expires_at')
+    .select('expires_at, can_manage_users')
     .eq('id', user.id)
     .single()
 
@@ -34,6 +34,11 @@ export async function requireSession(): Promise<SessionUser | NextResponse> {
     if (expiresAt < new Date()) {
       return NextResponse.json({ error: '账号已过期，请联系管理员续期' }, { status: 403 })
     }
+  }
+
+  // Sync can_manage_users from DB (cookie may be stale)
+  if (profile?.can_manage_users !== undefined && profile.can_manage_users !== null) {
+    user.can_manage_users = profile.can_manage_users
   }
 
   return user
