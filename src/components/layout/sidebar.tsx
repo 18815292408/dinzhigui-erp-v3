@@ -126,7 +126,7 @@ export function Sidebar({ userRole, userEmail, canManageUsers }: { userRole: str
         {/* 系统设置 - 间距分隔 */}
         <div className="pt-1 space-y-1">
           {navigation
-            .filter((item) => item.section === 'settings' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL))
+            .filter((item) => item.section === 'settings' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL) && (!item.requiresManageUsers || userRole === 'owner' || canManageUsers))
             .map((item) => {
               const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
               const Icon = item.icon
