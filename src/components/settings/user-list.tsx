@@ -28,7 +28,7 @@ const roleColors: Record<string, string> = {
   installer: 'bg-orange-100 text-orange-800',
 }
 
-function EditModal({ user, onClose, onDeleted }: { user: any; onClose: () => void; onDeleted: () => void }) {
+function EditModal({ user, isSelf, onClose, onDeleted }: { user: any; isSelf?: boolean; onClose: () => void; onDeleted: () => void }) {
   const [form, setForm] = useState({
     display_name: user.display_name || '',
     email: user.email || '',
@@ -39,30 +39,44 @@ function EditModal({ user, onClose, onDeleted }: { user: any; onClose: () => voi
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const isOwnerSelf = isSelf && user.role === 'owner'
+
   const handleSave = async () => {
     setError('')
-    if (!form.display_name) {
-      setError('请填写员工姓名')
-      return
-    }
-    if (!form.email && !form.phone) {
-      setError('邮箱和手机号不能同时为空')
-      return
-    }
-    if (form.password && form.password.length < 6) {
-      setError('密码至少6位')
-      return
+    if (isOwnerSelf) {
+      // Owner editing self: only password
+      if (!form.password || form.password.length < 6) {
+        setError('密码至少6位')
+        return
+      }
+    } else {
+      // Editing staff: full validation
+      if (!form.display_name) {
+        setError('请填写员工姓名')
+        return
+      }
+      if (!form.email && !form.phone) {
+        setError('邮箱和手机号不能同时为空')
+        return
+      }
+      if (form.password && form.password.length < 6) {
+        setError('密码至少6位')
+        return
+      }
     }
 
     setLoading(true)
     try {
-      const body: any = {
-        display_name: form.display_name,
-        email: form.email || null,
-        phone: form.phone || null,
-        role: form.role,
+      const body: any = {}
+      if (isOwnerSelf) {
+        body.password = form.password
+      } else {
+        body.display_name = form.display_name
+        body.email = form.email || null
+        body.phone = form.phone || null
+        body.role = form.role
+        if (form.password) body.password = form.password
       }
-      if (form.password) body.password = form.password
 
       const res = await fetch(`/api/users/${user.id}`, {
         method: 'PATCH',
@@ -117,75 +131,94 @@ function EditModal({ user, onClose, onDeleted }: { user: any; onClose: () => voi
         )}
 
         <div className="space-y-3">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">员工姓名</label>
-            <input
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              value={form.display_name}
-              onChange={(e) => setForm({ ...form, display_name: e.target.value })}
-              required
-            />
-          </div>
+          {isOwnerSelf ? (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">新密码</label>
+              <input
+                type="password"
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="请输入新密码"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">密码至少6位</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">员工姓名</label>
+                <input
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.display_name}
+                  onChange={(e) => setForm({ ...form, display_name: e.target.value })}
+                  required
+                />
+              </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">角色</label>
-            <select
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-            >
-              {editableRoles.map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">角色</label>
+                <select
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                >
+                  {editableRoles.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">邮箱</label>
-            <input
-              type="email"
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="与手机二选一"
-            />
-          </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">邮箱</label>
+                <input
+                  type="email"
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="与手机二选一"
+                />
+              </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">手机号</label>
-            <input
-              type="tel"
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="与邮箱二选一"
-            />
-          </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">手机号</label>
+                <input
+                  type="tel"
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="与邮箱二选一"
+                />
+              </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">新密码</label>
-            <input
-              type="password"
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder="留空则不修改密码"
-            />
-            <p className="text-xs text-muted-foreground">如需修改密码请填写，至少6位</p>
-          </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">新密码</label>
+                <input
+                  type="password"
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="留空则不修改密码"
+                />
+                <p className="text-xs text-muted-foreground">如需修改密码请填写，至少6位</p>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex gap-2 justify-between pt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-red-500 hover:text-red-600 hover:bg-red-50"
-            onClick={handleDelete}
-            disabled={loading}
-          >
-            删除
-          </Button>
-          <div className="flex gap-2">
+          {!isOwnerSelf && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+              onClick={handleDelete}
+              disabled={loading}
+            >
+              删除
+            </Button>
+          )}
+          <div className={`flex gap-2 ${isOwnerSelf ? 'ml-auto' : ''}`}>
             <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>取消</Button>
             <Button size="sm" onClick={handleSave} disabled={loading}>
               {loading ? '保存中...' : '保存'}
@@ -197,8 +230,11 @@ function EditModal({ user, onClose, onDeleted }: { user: any; onClose: () => voi
   )
 }
 
-export function UserList({ users }: { users: any[] }) {
+export function UserList({ users, currentUserId }: { users: any[]; currentUserId?: string }) {
   const [editingUser, setEditingUser] = useState<any>(null)
+
+  // Can edit if: not owner, OR is the current owner editing themselves
+  const canEdit = (user: any) => user.role !== 'owner' || user.id === currentUserId
 
   return (
     <>
@@ -216,7 +252,7 @@ export function UserList({ users }: { users: any[] }) {
                 <Badge className={roleColors[user.role]}>
                   {getRoleLabel(user)}
                 </Badge>
-                {user.role !== 'owner' && (
+                {canEdit(user) && (
                   <Button variant="ghost" size="sm" onClick={() => setEditingUser(user)}>
                     编辑
                   </Button>
@@ -229,6 +265,7 @@ export function UserList({ users }: { users: any[] }) {
       {editingUser && (
         <EditModal
           user={editingUser}
+          isSelf={editingUser.id === currentUserId}
           onClose={() => setEditingUser(null)}
           onDeleted={() => window.location.reload()}
         />

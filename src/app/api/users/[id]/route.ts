@@ -30,13 +30,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: '无权修改其他组织的员工' }, { status: 403 })
   }
 
-  // Cannot modify owner accounts
-  if (targetUser.role === 'owner') {
-    return NextResponse.json({ error: '不能修改老板账号信息' }, { status: 403 })
-  }
-
   const body = await request.json()
   const { display_name, email, phone, role, password } = body
+
+  // Owner accounts: can only edit self, and only password
+  if (targetUser.role === 'owner') {
+    if (targetUser.id !== session.id) {
+      return NextResponse.json({ error: '不能修改其他老板账号信息' }, { status: 403 })
+    }
+    // Self-edit: only password is allowed
+    if (display_name !== undefined || email !== undefined || phone !== undefined || role !== undefined) {
+      return NextResponse.json({ error: '只能修改自己的密码' }, { status: 403 })
+    }
+  }
 
   // Validate: email or phone required
   const newEmail = email !== undefined ? (email || null) : targetUser.email

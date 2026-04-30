@@ -35,7 +35,7 @@ export default async function UsersPage() {
         )}
       </div>
 
-      <UserList users={users || []} />
+      <UserList users={users || []} currentUserId={user?.id} />
     </div>
   )
 }
