@@ -44,13 +44,33 @@ async function getCustomer(id: string, organizationId: string) {
           const u = await adminSupabase.from('users').select('id, display_name').eq('id', o.assigned_installer).eq('organization_id', organizationId).single()
           o.assigned_installer_user = u.data
         }
+        const { data: orderDesigns, error: designErr } = await adminSupabase
+          .from('designs')
+          .select('id, title, room_count, total_area, final_price, description, cad_file, cad_file_url, kujiale_link, status, order_id, customer_id')
+          .eq('order_id', o.id)
+          .eq('organization_id', organizationId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+        if (designErr) console.error('order designs error:', designErr)
+        o.designs = orderDesigns || []
       }
     }
 
-    return { ...data, orders }
+    // 查询关联 installation（用于在客户详情页展示安装信息）
+    let installation = null
+    if (orders.length > 0) {
+      const { data: instData } = await adminSupabase
+        .from('installations')
+        .select('id, status, scheduled_date, feedback, order_id')
+        .eq('order_id', orders[0].id)
+        .maybeSingle()
+      installation = instData
+    }
+
+    return { ...data, orders, installation }
   }
 
-  return { ...data, orders: [] }
+  return { ...data, orders: [], installation: null }
 }
 
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
@@ -95,6 +115,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
       user={user}
       designers={designers || []}
       installers={installers || []}
+      installation={customer.installation}
     />
   )
 }

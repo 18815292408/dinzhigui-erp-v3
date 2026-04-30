@@ -9,7 +9,10 @@ import { TransferDesignButton } from '@/components/customers/transfer-design-but
 import { BackButton } from '@/components/ui/back-button'
 import { OrderStatusFlow } from '@/components/orders/order-status-flow'
 import { FactorySelector } from '@/components/orders/factory-selector'
+import { PerFactoryShipmentCard } from '@/components/installations/per-factory-shipment-card'
 import { formatMoney } from '@/lib/format-amount'
+import { getFactoryShipmentViewState } from '@/lib/factory-shipment'
+import { buildDesignSummary } from '@/lib/design-summary'
 
 const STATUS_LABELS: Record<string, string> = {
   pending_dispatch: '待派单',
@@ -44,15 +47,24 @@ interface Customer {
   orders: any[]
 }
 
+interface Installation {
+  id: string
+  status: string
+  scheduled_date: string | null
+  feedback: Array<{ content: string; date: string }> | null
+  order_id: string
+}
+
 interface CustomerDetailClientProps {
   customer: Customer
   canEdit: boolean
   user: { id: string; role: string; organization_id: string } | null
   designers: User[]
   installers: User[]
+  installation: Installation | null
 }
 
-export function CustomerDetailClient({ customer, canEdit, user, designers, installers }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, canEdit, user, designers, installers, installation }: CustomerDetailClientProps) {
   const router = useRouter()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -66,6 +78,11 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
 
   const order = customer.orders?.[0]
   const design = order?.designs?.[0]
+  const customerFactoryViewState = getFactoryShipmentViewState(
+    'customer',
+    order?.installation_status,
+    order?.factory_records
+  )
 
   const handleDeleteOrder = async () => {
     const orderId = customer.orders?.[0]?.id
@@ -365,8 +382,15 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
 
             {/* pending_order：方案已提交，等待下单 */}
             {order.status === 'pending_order' && (
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <p className="text-sm text-purple-800 mb-2">
+              <div className="p-4 bg-purple-50 rounded-lg space-y-4">
+                {design ? (
+                  <CustomerDesignSummary design={design} signedAmount={order.signed_amount} />
+                ) : (
+                  <div className="rounded-lg border border-purple-100 bg-white/70 p-3 text-sm text-muted-foreground">
+                    暂未找到关联方案信息
+                  </div>
+                )}
+                <p className="text-sm text-purple-800">
                   方案已提交，等待 <strong>{order.assigned_designer_user?.display_name || order.assigned_designer}</strong> 下单至工厂
                 </p>
                 <a
@@ -464,10 +488,49 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
                     )}
                   </>
                 ) : (
-                  <p className="text-sm text-cyan-800">
-                    已分配安装师傅 <strong>{order.assigned_installer_user?.display_name || order.assigned_installer}</strong>，
-                    等待安装师傅进入安装管理填写出货日期
-                  </p>
+                  <div className="space-y-3">
+                    <p className="text-sm text-cyan-800">
+                      已分配安装师傅 <strong>{order.assigned_installer_user?.display_name || order.assigned_installer}</strong>，
+                      等待安装师傅进入安装管理填写出货日期
+                    </p>
+                    {order.estimated_shipment_date && (
+                      <div className="text-sm text-gray-600">
+                        预计出货日期：{order.estimated_shipment_date}
+                      </div>
+                    )}
+
+                    {/* 工厂出货与到货 */}
+                    <PerFactoryShipmentCard
+                      orderId={order.id}
+                      factoryRecords={order.factory_records}
+                      canEdit={false}
+                      showActions={false}
+                    />
+
+                    {installation && Array.isArray(installation.feedback) && installation.feedback.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-cyan-100">
+                        <h4 className="text-sm font-medium text-cyan-900">安装反馈记录</h4>
+                        {installation.feedback.map((r, i) => (
+                          <div key={i} className="p-3 bg-white/70 rounded-lg">
+                            <p className="text-sm">{r.content}</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {installation && (!Array.isArray(installation.feedback) || installation.feedback.length === 0) && (
+                      <p className="text-sm text-gray-400">暂无安装反馈</p>
+                    )}
+
+                    <a
+                      href="/installations"
+                      className="text-sm text-blue-600 hover:underline font-medium"
+                    >
+                      去安装管理查看详情 →
+                    </a>
+                  </div>
                 )}
               </div>
             )}
@@ -479,7 +542,7 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
                   安装中（安装师傅：<strong>{order.assigned_installer_user?.display_name || order.assigned_installer}</strong>）
                 </p>
                 <div className="text-sm text-gray-600 mb-1">
-  安装进度：{
+                  安装进度：{
                     {
                       pending_ship: '待出货',
                       shipped: '已出货',
@@ -491,11 +554,44 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
                     }[String(order.installation_status || '')] || order.installation_status || '未知'
                   }
                 </div>
+                {order.estimated_shipment_date && (
+                  <div className="text-sm text-gray-600">
+                    预计出货日期：{order.estimated_shipment_date}
+                  </div>
+                )}
+
+                {/* 工厂出货与到货 */}
+                {customerFactoryViewState.showFactoryCard && (
+                  <PerFactoryShipmentCard
+                    orderId={order.id}
+                    factoryRecords={order.factory_records}
+                    canEdit={false}
+                    showActions={false}
+                  />
+                )}
+
+                {installation && Array.isArray(installation.feedback) && installation.feedback.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-green-100">
+                    <h4 className="text-sm font-medium text-green-900">安装反馈记录</h4>
+                    {installation.feedback.map((r, i) => (
+                      <div key={i} className="p-3 bg-white/70 rounded-lg">
+                        <p className="text-sm">{r.content}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {installation && (!Array.isArray(installation.feedback) || installation.feedback.length === 0) && (
+                  <p className="text-sm text-gray-400">暂无安装反馈</p>
+                )}
+
                 <a
                   href="/installations"
                   className="text-sm text-blue-600 hover:underline font-medium"
                 >
-                  去安装管理查看进度 →
+                  去安装管理查看详情 →
                 </a>
                 {order.installation_status === 'installed' && (
                   <div className="mt-3">
@@ -513,11 +609,26 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
 
             {/* completed：已完结 */}
             {order.status === 'completed' && (
-              <div className="p-4 bg-gray-100 rounded-lg">
+              <div className="p-4 bg-gray-100 rounded-lg space-y-3">
                 <p className="text-sm text-gray-700 font-medium">
                   订单已完成
                   {order.completed_at && `（${new Date(order.completed_at).toLocaleDateString('zh-CN')}）`}
                 </p>
+
+                {/* 安装反馈记录归档 */}
+                {installation && Array.isArray(installation.feedback) && installation.feedback.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-800">安装反馈记录</h4>
+                    {installation.feedback.map((r, i) => (
+                      <div key={i} className="p-3 bg-white rounded-lg">
+                        <p className="text-sm">{r.content}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -592,6 +703,76 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CustomerDesignSummary({
+  design,
+  signedAmount,
+}: {
+  design: any
+  signedAmount?: number | null
+}) {
+  const summary = buildDesignSummary(design, signedAmount)
+
+  return (
+    <div className="rounded-lg border border-purple-100 bg-white/80 p-4 text-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h4 className="font-medium text-purple-950">{summary.title}</h4>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border bg-white p-3">
+          <p className="text-muted-foreground">房间数量</p>
+          <p className="mt-1 font-medium">{summary.roomCount}</p>
+        </div>
+        <div className="rounded-lg border bg-white p-3">
+          <p className="text-muted-foreground">总面积</p>
+          <p className="mt-1 font-medium">{summary.totalArea}</p>
+        </div>
+        <div className="rounded-lg border bg-white p-3">
+          <p className="text-muted-foreground">成交价</p>
+          <p className="mt-1 font-medium">{summary.amount}</p>
+        </div>
+      </div>
+
+      {summary.description && (
+        <div className="mt-3 rounded-lg border bg-white p-3">
+          <p className="mb-1 text-muted-foreground">方案描述</p>
+          <p className="whitespace-pre-wrap">{summary.description}</p>
+        </div>
+      )}
+
+      {(summary.kujialeLink || summary.cadFileUrl) && (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {summary.kujialeLink && (
+            <div className="rounded-lg border bg-white p-3">
+              <p className="mb-1 text-muted-foreground">酷家乐链接</p>
+              <a
+                href={summary.kujialeLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-blue-600 hover:underline"
+              >
+                {summary.kujialeLink}
+              </a>
+            </div>
+          )}
+          {summary.cadFileUrl && (
+            <div className="rounded-lg border bg-white p-3">
+              <p className="mb-1 text-muted-foreground">CAD 文件</p>
+              <a
+                href={summary.cadFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                {summary.cadFileName || '点击下载'}
+              </a>
+            </div>
+          )}
         </div>
       )}
     </div>

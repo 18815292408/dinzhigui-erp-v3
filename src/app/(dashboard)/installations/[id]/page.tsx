@@ -24,7 +24,7 @@ async function getInstallation(id: string) {
       *,
       customers(id, name, phone, house_type),
       designs(id, title, room_count, total_area, final_price, price, description, cad_file, cad_file_url, kujiale_link),
-      orders(id, order_no, estimated_shipment_date, assigned_installer, installation_status, customer_name, customer_phone, house_type)
+      orders(id, order_no, estimated_shipment_date, assigned_installer, installation_status, customer_name, customer_phone, house_type, factory_records)
     `)
     .eq('id', id)
     .eq('organization_id', user.organization_id)
@@ -205,6 +205,7 @@ export default async function InstallationDetailPage({ params }: { params: { id:
             orderId={installation.order_id}
             installationStatus={installation.orders?.installation_status || 'pending_ship'}
             estimatedShipmentDate={installation.orders?.estimated_shipment_date || null}
+            factoryRecords={installation.orders?.factory_records || []}
             canEdit={canEdit}
             feedbackRecords={installation.feedback}
           />

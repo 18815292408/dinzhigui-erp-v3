@@ -27,8 +27,6 @@ export async function GET(request: Request) {
     const month = Number(searchParams.get('month') || new Date().getMonth() + 1)
 
     const adminSupabase = await createAdminClient()
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-    const endDate = new Date(year, month, 0).toISOString().slice(0, 10)
 
     const { data: monthlyOrders, error: ordersError } = await adminSupabase
       .from('orders')
@@ -45,12 +43,10 @@ export async function GET(request: Request) {
         payment_status,
         payment_confirmed_at,
         factory_records,
-        status
+        status,
+        completed_at
       `)
       .eq('organization_id', user.organization_id)
-      .or(
-        `and(created_at.gte.${startDate},created_at.lte.${endDate}T23:59:59),and(payment_confirmed_at.gte.${startDate},payment_confirmed_at.lte.${endDate}T23:59:59),and(updated_at.gte.${startDate},updated_at.lte.${endDate}T23:59:59)`
-      )
 
     if (ordersError) {
       return NextResponse.json(

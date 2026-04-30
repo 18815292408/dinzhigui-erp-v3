@@ -20,6 +20,7 @@ type OrderLike = {
   design_created_by?: string | null
   created_at: string | null
   updated_at: string | null
+  completed_at?: string | null
   signed_amount: number | string | null
   final_order_amount: number | string | null
   payment_status: string | null

@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
 
+const MAX_RETRIES = 1
+const RETRY_DELAY_MS = 500
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -94,17 +97,36 @@ export async function PUT(
 
   // Remove fields that shouldn't be updated directly
   const { id, organization_id, created_at, created_by, ...updates } = body
+  const orgId = user.organization_id
 
-  const { data, error } = await adminSupabase
-    .from('installations')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', params.id)
-    .eq('organization_id', user.organization_id)
-    .select()
-    .single()
+  async function updateWithRetry() {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const { data, error } = await adminSupabase
+        .from('installations')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', params.id)
+        .eq('organization_id', orgId)
+        .select()
+        .single()
+      if (error) {
+        const isTimeout =
+          error.message?.includes?.('fetch failed') ||
+          error.message?.includes?.('ConnectTimeoutError') ||
+          error.message?.includes?.('UND_ERR_CONNECT_TIMEOUT')
+        if (attempt < MAX_RETRIES && isTimeout) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)))
+          continue
+        }
+      }
+      return { data, error }
+    }
+    return { data: null, error: new Error('unreachable') }
+  }
+
+  const { data, error } = await updateWithRetry()
 
   if (error) {
     console.error('Update installation error:', error)

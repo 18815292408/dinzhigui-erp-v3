@@ -142,7 +142,22 @@ export default async function CompletedOrderDetailPage({ params }: { params: { i
           </div>
           <div className="mt-4 text-sm">
             <span className="text-muted-foreground">安装反馈：</span>
-            <p className="mt-1">{card.installationFeedback || '无'}</p>
+            {Array.isArray(card.installationFeedback) && card.installationFeedback.length > 0 ? (
+              <div className="space-y-2 mt-1">
+                {card.installationFeedback.map((record: any, i: number) => (
+                  <div key={i} className="rounded-lg border p-3">
+                    <p className="text-sm">{record.content}</p>
+                    {record.date && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {new Date(record.date).toLocaleString('zh-CN')}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-muted-foreground">无</p>
+            )}
           </div>
         </CardContent>
       </Card>
