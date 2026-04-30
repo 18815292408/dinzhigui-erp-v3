@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TransferDesignButton } from '@/components/customers/transfer-design-button'
 import { BackButton } from '@/components/ui/back-button'
 import { OrderStatusFlow } from '@/components/orders/order-status-flow'
+import { formatMoney } from '@/lib/format-amount'
 
 const STATUS_LABELS: Record<string, string> = {
   pending_dispatch: '待派单',
@@ -378,9 +379,52 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
             {/* pending_payment：店长确认打款并指派安装师傅 */}
             {order.status === 'pending_payment' && (
               <div className="p-4 bg-yellow-50 rounded-lg space-y-3">
-                <p className="text-sm text-yellow-800">
+                <p className="text-sm text-yellow-800 font-medium">
                   方案已下单，请确认打款
                 </p>
+
+                {/* 工厂下单明细 */}
+                {Array.isArray(order.factory_records) && order.factory_records.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-yellow-900">工厂下单明细</h4>
+                    <div className="bg-white rounded-lg p-3 space-y-2">
+                      {order.factory_records.map((record: any, idx: number) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span className="text-yellow-800">{record.factory_name}</span>
+                          <span className="font-medium text-yellow-900">{formatMoney(record.amount)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between text-sm font-bold border-t border-yellow-200 pt-2">
+                        <span>打款合计</span>
+                        <span className="text-red-600">
+                          {formatMoney(
+                            order.factory_records.reduce(
+                              (sum: number, r: any) => sum + (Number(r.amount) || 0),
+                              0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 金额汇总对比 */}
+                <div className="bg-white/60 rounded-lg p-3 text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-yellow-800">签单金额：</span>
+                    <span className="font-medium">
+                      {order.signed_amount ? formatMoney(order.signed_amount) : '未填写'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-yellow-800">最终下单销售额：</span>
+                    <span className="font-medium">
+                      {order.final_order_amount ? formatMoney(order.final_order_amount) : '未填写'}
+                    </span>
+                  </div>
+                </div>
+
                 {user && ['owner', 'manager'].includes(user.role) && (
                   <>
                     <button
