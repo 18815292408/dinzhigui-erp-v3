@@ -73,8 +73,8 @@ const STAGE_META: Record<string, { label: string; nextAction: string; href: stri
   designing: { label: '设计中', nextAction: '提交方案', href: '/designs' },
   pending_order: { label: '待下单', nextAction: '下单工厂', href: '/designs' },
   pending_payment: { label: '待打款', nextAction: '确认打款', href: '/orders' },
-  pending_shipment: { label: '待出货', nextAction: '填写出货/指派安装', href: '/installations' },
-  in_install: { label: '安装中', nextAction: '更新安装进度', href: '/installations' },
+  pending_shipment: { label: '待出货', nextAction: '填写出货/指派安装', href: '/orders' },
+  in_install: { label: '安装中', nextAction: '更新安装进度', href: '/orders' },
 }
 
 function toAmount(value: number | string | null | undefined) {
