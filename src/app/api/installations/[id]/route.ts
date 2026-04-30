@@ -65,28 +65,31 @@ export async function PUT(
 
   const newStatus = body.status
   const currentStatus = current.status
+  const isChangingStatus = newStatus && newStatus !== currentStatus
 
-  // 工作流程校验
-  // 1. 进行中 → 已完成：至少有一条反馈记录
-  if (currentStatus === 'in_progress' && newStatus === 'completed') {
-    const feedbackRecords = Array.isArray(body.feedback) ? body.feedback : []
-    if (feedbackRecords.length === 0) {
-      return NextResponse.json({ error: '完成安装前必须填写安装反馈' }, { status: 400 })
+  // 工作流程校验（仅当状态变更时进行）
+  if (isChangingStatus) {
+    // 1. 进行中 → 已完成：至少有一条反馈记录
+    if (currentStatus === 'in_progress' && newStatus === 'completed') {
+      const feedbackRecords = Array.isArray(body.feedback) ? body.feedback : []
+      if (feedbackRecords.length === 0) {
+        return NextResponse.json({ error: '完成安装前必须填写安装反馈' }, { status: 400 })
+      }
     }
-  }
 
-  // 2. 不能从已完成或已取消改回其他状态
-  if ((currentStatus === 'completed' || currentStatus === 'cancelled') && newStatus !== currentStatus) {
-    return NextResponse.json({ error: '已完成或已取消的安装单不能更改状态' }, { status: 400 })
-  }
+    // 2. 不能从已完成或已取消改回其他状态
+    if (currentStatus === 'completed' || currentStatus === 'cancelled') {
+      return NextResponse.json({ error: '已完成或已取消的安装单不能更改状态' }, { status: 400 })
+    }
 
-  // 3. 不能跳过状态（pending不能直接到completed，但允许通过确认到货直接跳到进行中）
-  const validFlows: Record<string, string[]> = {
-    pending: ['in_progress', 'completed', 'cancelled'],
-    in_progress: ['completed', 'cancelled'],
-  }
-  if (newStatus !== currentStatus && !validFlows[currentStatus]?.includes(newStatus)) {
-    return NextResponse.json({ error: `不能从${currentStatus}直接改为${newStatus}` }, { status: 400 })
+    // 3. 不能跳过状态
+    const validFlows: Record<string, string[]> = {
+      pending: ['in_progress', 'completed', 'cancelled'],
+      in_progress: ['completed', 'cancelled'],
+    }
+    if (!validFlows[currentStatus]?.includes(newStatus)) {
+      return NextResponse.json({ error: `不能从${currentStatus}直接改为${newStatus}` }, { status: 400 })
+    }
   }
 
   // Remove fields that shouldn't be updated directly
