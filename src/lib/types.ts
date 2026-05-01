@@ -89,7 +89,7 @@ export interface Order {
   created_by: string | null
   assigned_designer: string | null
   assigned_installer: string | null
-  status: 'pending_dispatch' | 'pending_design' | 'designing' | 'pending_order' | 'pending_payment' | 'pending_shipment' | 'in_install' | 'completed'
+  status: 'pending_dispatch' | 'pending_design' | 'designing' | 'pending_order' | 'pending_payment' | 'pending_shipment' | 'in_install' | 'in_after_sales' | 'completed'
   design_due_days: number | null
   design_due_date: string | null
   signed_amount: number | null

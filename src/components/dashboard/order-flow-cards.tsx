@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, CheckCircle, ClipboardList, CreditCard, FileText, Truck, UserRoundCheck } from 'lucide-react'
+import { ArrowRight, CheckCircle, ClipboardList, CreditCard, FileText, Truck, UserRoundCheck, Wrench } from 'lucide-react'
 
 const iconByKey: Record<string, any> = {
   pending_dispatch: ClipboardList,
@@ -7,6 +7,7 @@ const iconByKey: Record<string, any> = {
   pending_order: UserRoundCheck,
   pending_payment: CreditCard,
   install: Truck,
+  after_sales: Wrench,
   completed_this_month: CheckCircle,
 }
 
@@ -16,12 +17,13 @@ const colorByKey: Record<string, string> = {
   pending_order: 'bg-purple-100 text-purple-700',
   pending_payment: 'bg-amber-100 text-amber-700',
   install: 'bg-cyan-100 text-cyan-700',
+  after_sales: 'bg-purple-100 text-purple-700',
   completed_this_month: 'bg-green-100 text-green-700',
 }
 
 export function OrderFlowCards({ cards }: { cards: any[] }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-7 gap-4">
       {cards.map((card) => {
         const Icon = iconByKey[card.key] || ClipboardList
         return (

@@ -12,6 +12,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending_payment: '待打款',
   pending_shipment: '待出货',
   in_install: '安装中',
+  in_after_sales: '售后中',
   completed: '已完结'
 }
 
@@ -24,6 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending_payment: 'bg-red-100 text-red-700',
   pending_shipment: 'bg-yellow-100 text-yellow-700',
   in_install: 'bg-green-100 text-green-700',
+  in_after_sales: 'bg-purple-100 text-purple-700',
   completed: 'bg-gray-300 text-gray-600'
 }
 

@@ -22,6 +22,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending_payment: '待打款',
   pending_shipment: '待出货',
   in_install: '安装中',
+  in_after_sales: '售后中',
   completed: '已完结',
 }
 
@@ -52,6 +53,7 @@ interface Installation {
   status: string
   scheduled_date: string | null
   feedback: Array<{ content: string; date: string }> | null
+  after_sales_feedback: Array<{ content: string; date: string }> | null
   order_id: string
 }
 
@@ -219,6 +221,27 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error || '完成订单失败')
+      }
+      router.refresh()
+    } catch (err: any) {
+      setActionError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleEnterAfterSales = async () => {
+    if (!order?.id) return
+    setActionLoading(true)
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/after-sales`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '进入售后流程失败')
       }
       router.refresh()
     } catch (err: any) {
@@ -594,16 +617,72 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
                   去安装管理查看详情 →
                 </a>
                 {order.installation_status === 'installed' && (
-                  <div className="mt-3">
-                    <button
-                      onClick={handleCompleteOrder}
-                      disabled={actionLoading}
-                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 text-sm"
-                    >
-                      {actionLoading ? '处理中...' : '确认完成订单'}
-                    </button>
+                  <div className="mt-3 text-sm text-green-700">
+                    安装已完成，可前往安装管理进行后续操作
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* in_after_sales：售后中 */}
+            {order.status === 'in_after_sales' && (
+              <div className="p-4 bg-purple-50 rounded-lg space-y-3">
+                <p className="text-sm text-purple-800 mb-2">
+                  售后中（安装师傅：<strong>{order.assigned_installer_user?.display_name || order.assigned_installer}</strong>）
+                </p>
+                <div className="text-sm text-gray-600 mb-1">
+                  安装进度：已完成
+                </div>
+                {order.estimated_shipment_date && (
+                  <div className="text-sm text-gray-600">
+                    预计出货日期：{order.estimated_shipment_date}
+                  </div>
+                )}
+
+                {/* 工厂出货与到货（只读） */}
+                {customerFactoryViewState.showFactoryCard && (
+                  <PerFactoryShipmentCard
+                    orderId={order.id}
+                    factoryRecords={order.factory_records}
+                    canEdit={false}
+                    showActions={false}
+                  />
+                )}
+
+                {installation && Array.isArray(installation.feedback) && installation.feedback.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-purple-100">
+                    <h4 className="text-sm font-medium text-purple-900">安装反馈记录</h4>
+                    {installation.feedback.map((r, i) => (
+                      <div key={i} className="p-3 bg-white/70 rounded-lg">
+                        <p className="text-sm">{r.content}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {installation && Array.isArray(installation.after_sales_feedback) && installation.after_sales_feedback.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-purple-100">
+                    <h4 className="text-sm font-medium text-purple-900">售后反馈记录</h4>
+                    {installation.after_sales_feedback.map((r: any, i: number) => (
+                      <div key={i} className="p-3 bg-white/70 rounded-lg">
+                        <p className="text-sm">{r.content}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <a
+                  href="/installations"
+                  className="text-sm text-blue-600 hover:underline font-medium"
+                >
+                  去安装管理查看详情 →
+                </a>
               </div>
             )}
 
@@ -620,6 +699,21 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
                   <div className="space-y-2 pt-2 border-t border-gray-200">
                     <h4 className="text-sm font-medium text-gray-800">安装反馈记录</h4>
                     {installation.feedback.map((r, i) => (
+                      <div key={i} className="p-3 bg-white rounded-lg">
+                        <p className="text-sm">{r.content}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 售后反馈记录归档 */}
+                {installation && Array.isArray(installation.after_sales_feedback) && installation.after_sales_feedback.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-800">售后反馈记录</h4>
+                    {installation.after_sales_feedback.map((r: any, i: number) => (
                       <div key={i} className="p-3 bg-white rounded-lg">
                         <p className="text-sm">{r.content}</p>
                         <p className="text-xs text-gray-400 mt-1">

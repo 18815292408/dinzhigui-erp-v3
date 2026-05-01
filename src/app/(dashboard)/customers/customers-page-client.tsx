@@ -36,6 +36,7 @@ const STAGE_FILTERS: Record<string, { label: string; statuses: string[] }> = {
   pending_order: { label: '待下单', statuses: ['pending_order'] },
   pending_payment: { label: '待打款', statuses: ['pending_payment'] },
   install: { label: '出货/安装中', statuses: ['pending_shipment', 'in_install'] },
+  after_sales: { label: '售后中', statuses: ['in_after_sales'] },
 }
 
 export function CustomersPageClient({ customers }: { customers: CustomersData }) {

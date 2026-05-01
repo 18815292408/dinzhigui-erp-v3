@@ -12,6 +12,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending_payment: '待打款',
   pending_shipment: '待出货',
   in_install: '安装中',
+  in_after_sales: '售后中',
   completed: '已完结'
 }
 

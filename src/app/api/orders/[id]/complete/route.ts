@@ -36,6 +36,7 @@ export async function POST(
     })
     .eq('id', orderId)
     .eq('installation_status', 'installed')
+    .in('status', ['in_install', 'in_after_sales'])
 
   if (user.role === 'installer') {
     query = query.eq('assigned_installer', user.id)

@@ -8,6 +8,7 @@ const STATUS_STEPS = [
   { key: 'pending_payment', label: '待打款' },
   { key: 'pending_shipment', label: '待出货' },
   { key: 'in_install', label: '安装中' },
+  { key: 'in_after_sales', label: '售后中' },
   { key: 'completed', label: '已完结' }
 ]
 

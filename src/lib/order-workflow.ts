@@ -10,6 +10,7 @@ export const ACTIVE_ORDER_STATUSES = [
   'pending_payment',
   'pending_shipment',
   'in_install',
+  'in_after_sales',
 ] as const
 
 type WorkflowOrder = {
@@ -79,12 +80,15 @@ export function shouldShowInstallationInActiveList(input: {
   order?: WorkflowOrder | null
   customerOrders?: WorkflowOrder[] | null
 }) {
-  if (!ACTIVE_INSTALLATION_STATUSES.includes(input.status as any)) {
+  const isActiveInstall = ACTIVE_INSTALLATION_STATUSES.includes(input.status as any)
+  const isAfterSales = input.status === 'completed' && input.order?.status === 'in_after_sales'
+
+  if (!isActiveInstall && !isAfterSales) {
     return false
   }
 
   if (input.order) {
-    return isActiveOrderStatus(input.order.status)
+    return isActiveOrderStatus(input.order.status) || input.order.status === 'in_after_sales'
   }
 
   const customerOrders = input.customerOrders || []

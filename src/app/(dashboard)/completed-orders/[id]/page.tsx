@@ -34,7 +34,7 @@ async function getCompletedOrder(id: string) {
       .maybeSingle(),
     adminSupabase
       .from('installations')
-      .select('id, status, scheduled_date, completed_at, feedback')
+      .select('id, status, scheduled_date, completed_at, feedback, after_sales_feedback')
       .eq('order_id', id)
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -145,6 +145,25 @@ export default async function CompletedOrderDetailPage({ params }: { params: { i
             {Array.isArray(card.installationFeedback) && card.installationFeedback.length > 0 ? (
               <div className="space-y-2 mt-1">
                 {card.installationFeedback.map((record: any, i: number) => (
+                  <div key={i} className="rounded-lg border p-3">
+                    <p className="text-sm">{record.content}</p>
+                    {record.date && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {new Date(record.date).toLocaleString('zh-CN')}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-muted-foreground">无</p>
+            )}
+          </div>
+          <div className="mt-4 text-sm">
+            <span className="text-muted-foreground">售后反馈：</span>
+            {Array.isArray(order.installation?.after_sales_feedback) && order.installation.after_sales_feedback.length > 0 ? (
+              <div className="space-y-2 mt-1">
+                {order.installation.after_sales_feedback.map((record: any, i: number) => (
                   <div key={i} className="rounded-lg border p-3">
                     <p className="text-sm">{record.content}</p>
                     {record.date && (

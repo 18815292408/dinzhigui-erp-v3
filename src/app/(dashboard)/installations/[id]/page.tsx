@@ -24,7 +24,7 @@ async function getInstallation(id: string) {
       *,
       customers(id, name, phone, house_type),
       designs(id, title, room_count, total_area, final_price, price, description, cad_file, cad_file_url, kujiale_link),
-      orders(id, order_no, estimated_shipment_date, assigned_installer, installation_status, customer_name, customer_phone, house_type, factory_records)
+      orders(id, order_no, estimated_shipment_date, assigned_installer, assigned_designer, installation_status, status, customer_name, customer_phone, house_type, factory_records)
     `)
     .eq('id', id)
     .eq('organization_id', user.organization_id)
@@ -38,6 +38,7 @@ const statusLabels: Record<string, string> = {
   in_progress: '进行中',
   completed: '已完成',
   cancelled: '已取消',
+  in_after_sales: '售后中',
 }
 
 export default async function InstallationDetailPage({ params }: { params: { id: string } }) {
@@ -49,6 +50,18 @@ export default async function InstallationDetailPage({ params }: { params: { id:
   const installation: any = await getInstallation(params.id)
   if (!installation) {
     return <div className="p-6">安装单不存在</div>
+  }
+
+  // 获取设计师姓名
+  let designerName = '未指派'
+  if (installation.orders?.assigned_designer) {
+    const adminSupabase = await createAdminClient()
+    const { data: designer } = await adminSupabase
+      .from('users')
+      .select('display_name')
+      .eq('id', installation.orders.assigned_designer)
+      .single()
+    if (designer) designerName = designer.display_name || '未指派'
   }
 
   const cookieStore = await cookies()
@@ -165,6 +178,10 @@ export default async function InstallationDetailPage({ params }: { params: { id:
               {card.orderNo || '无'}
             </div>
             <div>
+              <span className="text-muted-foreground">设计师：</span>
+              {designerName}
+            </div>
+            <div>
               <span className="text-muted-foreground">预约日期：</span>
               {installation.scheduled_date || '待定'}
             </div>
@@ -174,15 +191,32 @@ export default async function InstallationDetailPage({ params }: { params: { id:
             </div>
             <div>
               <span className="text-muted-foreground">当前状态：</span>
-              {statusLabels[installation.status] || installation.status}
+              {installation.orders?.status === 'in_after_sales'
+                ? statusLabels['in_after_sales']
+                : (statusLabels[installation.status] || installation.status)}
             </div>
           </div>
           {Array.isArray(installation.feedback) && installation.feedback.length > 0 && (
             <div className="mt-4">
-              <span className="text-muted-foreground">反馈记录：</span>
+              <span className="text-muted-foreground">安装反馈记录：</span>
               <div className="space-y-2 mt-2">
                 {installation.feedback.map((r: any, i: number) => (
                   <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm">{r.content}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {Array.isArray(installation.after_sales_feedback) && installation.after_sales_feedback.length > 0 && (
+            <div className="mt-4">
+              <span className="text-muted-foreground">售后反馈记录：</span>
+              <div className="space-y-2 mt-2">
+                {installation.after_sales_feedback.map((r: any, i: number) => (
+                  <div key={i} className="p-3 bg-purple-50 rounded-lg">
                     <p className="text-sm">{r.content}</p>
                     <p className="text-xs text-gray-400 mt-1">
                       {r.date ? new Date(r.date).toLocaleString('zh-CN') : ''}
@@ -204,10 +238,12 @@ export default async function InstallationDetailPage({ params }: { params: { id:
             installationId={installation.id}
             orderId={installation.order_id}
             installationStatus={installation.orders?.installation_status || 'pending_ship'}
+            orderStatus={installation.orders?.status || ''}
             estimatedShipmentDate={installation.orders?.estimated_shipment_date || null}
             factoryRecords={installation.orders?.factory_records || []}
             canEdit={canEdit}
             feedbackRecords={installation.feedback}
+            afterSalesFeedbackRecords={installation.after_sales_feedback}
           />
         </CardContent>
       </Card>

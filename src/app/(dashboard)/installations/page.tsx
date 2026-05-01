@@ -16,7 +16,7 @@ async function getInstallations() {
   const adminSupabase = await createAdminClient()
   const orgId = user.organization_id
 
-  // 1. 查询活跃安装记录
+  // 1. 查询活跃安装记录（包含售后中的已完成安装）
   const { data } = await adminSupabase
     .from('installations')
     .select(`
@@ -26,7 +26,7 @@ async function getInstallations() {
       orders(id, order_no, status, customer_name, customer_phone, house_type)
     `)
     .eq('organization_id', orgId)
-    .in('status', [...ACTIVE_INSTALLATION_STATUSES])
+    .in('status', [...ACTIVE_INSTALLATION_STATUSES, 'completed'])
     .order('created_at', { ascending: false })
 
   // 2. 查询所有订单（用于关联过滤）
@@ -41,7 +41,7 @@ async function getInstallations() {
     .from('orders')
     .select('id, status, order_no, customer_name, customer_phone, house_type, assigned_installer, organization_id')
     .eq('organization_id', orgId)
-    .in('status', ['pending_shipment', 'in_install'])
+    .in('status', ['pending_shipment', 'in_install', 'in_after_sales'])
 
   const orphanOrders = (installPhaseOrders || []).filter(
     (o: any) => !existingOrderIds.has(o.id)
@@ -98,7 +98,7 @@ async function getInstallations() {
         orders(id, order_no, status, customer_name, customer_phone, house_type)
       `)
       .eq('organization_id', orgId)
-      .in('status', [...ACTIVE_INSTALLATION_STATUSES])
+      .in('status', [...ACTIVE_INSTALLATION_STATUSES, 'completed'])
       .order('created_at', { ascending: false })
 
     return (refreshed || []).filter((installation: any) =>

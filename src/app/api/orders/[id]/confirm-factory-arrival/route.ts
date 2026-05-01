@@ -80,11 +80,20 @@ export async function POST(
   }
 
   if (factoryUpdate.allArrived) {
+    // 如果 scheduled_date 为空，自动设为到货日期
+    const { data: install } = await adminSupabase
+      .from('installations')
+      .select('scheduled_date')
+      .eq('order_id', orderId)
+      .eq('organization_id', user.organization_id)
+      .single()
+
     const { error: installationError } = await adminSupabase
       .from('installations')
       .update({
         status: 'in_progress',
         arrival_date: arrivalDate.slice(0, 10),
+        scheduled_date: install?.scheduled_date || arrivalDate.slice(0, 10),
         updated_at: arrivalDate,
       })
       .eq('order_id', orderId)

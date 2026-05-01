@@ -77,8 +77,12 @@ export function InstallationList({ installations }: { installations: any[] }) {
                 </p>
               </Link>
               <div className="flex items-center gap-2">
-                <Badge className={statusConfig[inst.status as keyof typeof statusConfig]?.color}>
-                  {statusConfig[inst.status as keyof typeof statusConfig]?.label}
+                <Badge className={
+                  inst.orders?.status === 'in_after_sales'
+                    ? 'bg-purple-100 text-purple-800'
+                    : (statusConfig[inst.status as keyof typeof statusConfig]?.color || 'bg-gray-100 text-gray-800')
+                }>
+                  {inst.orders?.status === 'in_after_sales' ? '售后中' : (statusConfig[inst.status as keyof typeof statusConfig]?.label || inst.status)}
                 </Badge>
                 <button
                   onClick={() => handleDeleteInstallation(inst.id)}

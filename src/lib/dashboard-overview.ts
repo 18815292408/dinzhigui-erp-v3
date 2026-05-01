@@ -65,6 +65,13 @@ const FLOW_CARDS: FlowCard[] = [
     statuses: ['pending_shipment', 'in_install'],
     href: '/customers?tab=followup&stage=install',
   },
+  {
+    key: 'after_sales',
+    label: '售后中',
+    description: '安装完成，售后跟进中',
+    statuses: ['in_after_sales'],
+    href: '/customers?tab=followup&stage=after_sales',
+  },
 ]
 
 const STAGE_META: Record<string, { label: string; nextAction: string; href: string }> = {
@@ -75,6 +82,7 @@ const STAGE_META: Record<string, { label: string; nextAction: string; href: stri
   pending_payment: { label: '待打款', nextAction: '确认打款', href: '/customers' },
   pending_shipment: { label: '待出货', nextAction: '填写出货/指派安装', href: '/customers' },
   in_install: { label: '安装中', nextAction: '更新安装进度', href: '/customers' },
+  in_after_sales: { label: '售后中', nextAction: '确认售后完成', href: '/customers' },
 }
 
 function toAmount(value: number | string | null | undefined) {

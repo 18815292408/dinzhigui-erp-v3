@@ -61,7 +61,7 @@ async function getCustomer(id: string, organizationId: string) {
     if (orders.length > 0) {
       const { data: instData } = await adminSupabase
         .from('installations')
-        .select('id, status, scheduled_date, feedback, order_id')
+        .select('id, status, scheduled_date, feedback, after_sales_feedback, order_id')
         .eq('order_id', orders[0].id)
         .maybeSingle()
       installation = instData

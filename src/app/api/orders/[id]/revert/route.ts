@@ -11,6 +11,7 @@ const REVERT_MAP: Record<string, string> = {
   pending_payment: 'pending_order',
   pending_shipment: 'pending_payment',
   in_install: 'pending_shipment',
+  in_after_sales: 'in_install',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -21,6 +22,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending_payment: '待打款',
   pending_shipment: '待出货',
   in_install: '安装中',
+  in_after_sales: '售后中',
 }
 
 export async function POST(
@@ -183,7 +185,22 @@ export async function POST(
     }
   }
 
-  if (prevStatus === 'in_install') {
+  if (currentOrder.status === 'in_after_sales' && prevStatus === 'in_install') {
+    // 从售后回退到安装中：保留安装记录，通知安装师傅
+    if (currentOrder.assigned_installer) {
+      await adminSupabase.from('notifications').insert({
+        organization_id: currentOrder.organization_id,
+        user_id: currentOrder.assigned_installer,
+        type: 'order_reverted',
+        priority: 'normal',
+        title: '订单已回退至安装中',
+        summary: `订单 ${currentOrder.order_no} 已回退到安装中，请继续跟进`,
+        related_order_id: orderId
+      })
+    }
+  }
+
+  if (currentOrder.status !== 'in_after_sales' && prevStatus === 'in_install') {
     // 回退到安装中：删除安装记录，清除安装师傅
     updates.assigned_installer = null
     await adminSupabase

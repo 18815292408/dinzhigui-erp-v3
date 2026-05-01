@@ -18,6 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending_payment: '待打款',
   pending_shipment: '待出货',
   in_install: '安装中',
+  in_after_sales: '售后中',
   completed: '已完结'
 }
 
@@ -93,7 +94,7 @@ export default function OrderDetailPage() {
   }, [])
 
   useEffect(() => {
-    if (order?.status === 'in_install') {
+    if (order?.status === 'in_install' || order?.status === 'in_after_sales') {
       fetchInstallation()
     }
   }, [order?.status, order?.id])
@@ -310,6 +311,26 @@ export default function OrderDetailPage() {
     }
   }
 
+  const handleEnterAfterSales = async () => {
+    setActionLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/after-sales`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '进入售后流程失败')
+      }
+      fetchOrder()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   if (loading) return <div className="p-6">加载中...</div>
   if (!order) return <div className="p-6">订单不存在</div>
 
@@ -425,7 +446,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* 安装信息区域 */}
-      {order.status === 'in_install' && (
+      {(order.status === 'in_install' || order.status === 'in_after_sales') && (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>安装信息</CardTitle>
@@ -551,15 +572,43 @@ export default function OrderDetailPage() {
               </button>
             ))}
           </div>
-          {order.installation_status === 'installed' && (
+        </div>
+      )}
+
+      {/* 安装完成后的操作（owner/manager） */}
+      {order.status === 'in_install' && order.installation_status === 'installed' && isOwnerOrManager && (
+        <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
+          <h2 className="text-lg font-semibold mb-4">安装完成</h2>
+          <div className="flex gap-3">
             <button
               onClick={handleComplete}
               disabled={actionLoading}
-              className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
             >
-              确认完成
+              {actionLoading ? '处理中...' : '确认完成订单'}
             </button>
-          )}
+            <button
+              onClick={handleEnterAfterSales}
+              disabled={actionLoading}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+            >
+              {actionLoading ? '处理中...' : '进入售后流程'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 售后中 */}
+      {order.status === 'in_after_sales' && isOwnerOrManager && (
+        <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
+          <h2 className="text-lg font-semibold mb-4">售后中</h2>
+          <button
+            onClick={handleComplete}
+            disabled={actionLoading}
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+          >
+            {actionLoading ? '处理中...' : '售后完成'}
+          </button>
         </div>
       )}
     </div>
