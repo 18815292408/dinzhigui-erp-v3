@@ -1,4 +1,6 @@
 import { LoginForm } from './login-form'
+import Link from 'next/link'
+import { HelpCircle } from 'lucide-react'
 
 export default function LoginPage() {
   return (
@@ -30,9 +32,18 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[13px] text-apple-gray-500 mt-6">
-          © 2024 定制大师. 保留所有权利。
-        </p>
+        <div className="text-center mt-6 space-y-2">
+          <Link
+            href="/help"
+            className="inline-flex items-center gap-1.5 text-[13px] text-apple-gray-500 hover:text-apple-blue transition-colors"
+          >
+            <HelpCircle className="w-4 h-4" />
+            使用说明
+          </Link>
+          <p className="text-[13px] text-apple-gray-500">
+            © 2024 定制大师. 保留所有权利。
+          </p>
+        </div>
       </div>
     </div>
   )

@@ -5,7 +5,7 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Public paths
-  const publicPaths = ['/login', '/api/auth']
+  const publicPaths = ['/login', '/api/auth', '/help']
   const isPublicPath = publicPaths.some(p => pathname.startsWith(p))
 
   // Cloudflare Pages auth (cookie-based)

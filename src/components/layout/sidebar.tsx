@@ -14,6 +14,7 @@ import {
   Bell,
   Factory,
   CheckCircle,
+  HelpCircle,
 } from 'lucide-react'
 
 interface NavItem {
@@ -36,6 +37,7 @@ const navigation: NavItem[] = [
   { name: '消息中心', href: '/notifications', icon: Bell, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'settings' },
   { name: '账号管理', href: '/settings/users', icon: Settings, roles: ['owner', 'manager'], section: 'settings', requiresManageUsers: true },
   { name: '管理员面板', href: '/settings/admin', icon: Shield, roles: ['owner'], section: 'settings', adminOnly: true },
+  { name: '使用说明', href: '/help', icon: HelpCircle, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'settings' },
 ]
 
 export function Sidebar({ userRole, userEmail, canManageUsers }: { userRole: string; userEmail: string; canManageUsers?: boolean }) {
