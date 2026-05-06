@@ -46,6 +46,10 @@ async function getCompletedOrders() {
 }
 
 export default async function CompletedOrdersPage() {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
+  const user = sessionCookie ? parseSessionUser(sessionCookie.value) : null
+
   const orders = await getCompletedOrders()
 
   return (
@@ -55,7 +59,7 @@ export default async function CompletedOrdersPage() {
         <p className="text-muted-foreground">查看已归档的完成订单和客户信息</p>
       </div>
 
-      <CompletedOrderList orders={orders} />
+      <CompletedOrderList orders={orders} userRole={user?.role || ''} />
     </div>
   )
 }

@@ -56,8 +56,16 @@ function EditModal({ user, isSelf, currentUserRole, onClose, onDeleted }: {
   const handleSave = async () => {
     setError('')
     if (isOwnerSelf) {
-      // Owner editing self: only password
-      if (!form.password || form.password.length < 6) {
+      // Owner editing self: display_name, email, phone, optionally password
+      if (!form.display_name) {
+        setError('请填写姓名')
+        return
+      }
+      if (!form.email && !form.phone) {
+        setError('邮箱和手机号不能同时为空')
+        return
+      }
+      if (form.password && form.password.length < 6) {
         setError('密码至少6位')
         return
       }
@@ -81,7 +89,10 @@ function EditModal({ user, isSelf, currentUserRole, onClose, onDeleted }: {
     try {
       const body: any = {}
       if (isOwnerSelf) {
-        body.password = form.password
+        body.display_name = form.display_name
+        body.email = form.email || null
+        body.phone = form.phone || null
+        if (form.password) body.password = form.password
       } else {
         body.display_name = form.display_name
         body.email = form.email || null
@@ -148,18 +159,48 @@ function EditModal({ user, isSelf, currentUserRole, onClose, onDeleted }: {
 
         <div className="space-y-3">
           {isOwnerSelf ? (
-            <div className="space-y-1">
-              <label className="text-sm font-medium">新密码</label>
-              <input
-                type="password"
-                className="w-full px-3 py-2 border rounded-md text-sm"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="请输入新密码"
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground">密码至少6位</p>
-            </div>
+            <>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">姓名</label>
+                <input
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.display_name}
+                  onChange={(e) => setForm({ ...form, display_name: e.target.value })}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">邮箱</label>
+                <input
+                  type="email"
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="与手机二选一"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">手机号</label>
+                <input
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="与邮箱二选一"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">新密码（留空则不修改）</label>
+                <input
+                  type="password"
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="留空则不修改密码"
+                />
+                <p className="text-xs text-muted-foreground">密码至少6位</p>
+              </div>
+            </>
           ) : (
             <>
               <div className="space-y-1">

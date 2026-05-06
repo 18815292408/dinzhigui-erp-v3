@@ -130,7 +130,7 @@ export async function DELETE(
 
     const { data: order, error: orderErr } = await adminSupabase
       .from('orders')
-      .select('created_by')
+      .select('created_by, status')
       .eq('id', params.id)
       .single()
 
@@ -153,36 +153,42 @@ export async function DELETE(
       }
     }
 
-    // 检查是否有设计方案（所有角色均需检查）
-    const { data: designs } = await adminSupabase
-      .from('designs')
-      .select('id')
-      .eq('order_id', params.id)
-      .limit(1)
+    // 已完成订单：级联删除关联的设计方案、安装记录和通知
+    if (order.status === 'completed') {
+      await adminSupabase.from('designs').delete().eq('order_id', params.id)
+      await adminSupabase.from('installations').delete().eq('order_id', params.id)
+      await adminSupabase.from('notifications').delete().eq('related_order_id', params.id)
+    } else {
+      // 非已完成订单：检查关联记录，有则阻止删除
+      const { data: designs } = await adminSupabase
+        .from('designs')
+        .select('id')
+        .eq('order_id', params.id)
+        .limit(1)
 
-    if (designs && designs.length > 0) {
-      return NextResponse.json(
-        { error: '该订单还有设计方案，请到方案管理删除设计方案后再试' },
-        { status: 400 }
-      )
+      if (designs && designs.length > 0) {
+        return NextResponse.json(
+          { error: '该订单还有设计方案，请到方案管理删除设计方案后再试' },
+          { status: 400 }
+        )
+      }
+
+      const { data: installations } = await adminSupabase
+        .from('installations')
+        .select('id')
+        .eq('order_id', params.id)
+        .limit(1)
+
+      if (installations && installations.length > 0) {
+        return NextResponse.json(
+          { error: '该订单还有安装记录，请到安装管理删除安装记录后再试' },
+          { status: 400 }
+        )
+      }
+
+      // 清理关联通知
+      await adminSupabase.from('notifications').update({ related_order_id: null }).eq('related_order_id', params.id)
     }
-
-    // 检查是否有安装记录（所有角色均需检查）
-    const { data: installations } = await adminSupabase
-      .from('installations')
-      .select('id')
-      .eq('order_id', params.id)
-      .limit(1)
-
-    if (installations && installations.length > 0) {
-      return NextResponse.json(
-        { error: '该订单还有安装记录，请到安装管理删除安装记录后再试' },
-        { status: 400 }
-      )
-    }
-
-    // 清理关联通知
-    await adminSupabase.from('notifications').update({ related_order_id: null }).eq('related_order_id', params.id)
 
     const { error: deleteErr } = await adminSupabase
       .from('orders')
@@ -192,13 +198,6 @@ export async function DELETE(
 
     if (deleteErr) {
       console.error('DELETE order - delete error:', deleteErr)
-      const msg = deleteErr.message || ''
-      if (msg.includes('designs_order_id_fkey')) {
-        return NextResponse.json({ error: '该订单关联了设计方案，请先到方案管理删除设计方案后再试' }, { status: 400 })
-      }
-      if (msg.includes('installations_order_id_fkey')) {
-        return NextResponse.json({ error: '该订单关联了安装记录，请先到安装管理删除安装记录后再试' }, { status: 400 })
-      }
       return NextResponse.json({ error: '删除失败：' + deleteErr.message }, { status: 500 })
     }
 
