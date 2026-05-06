@@ -52,29 +52,47 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
     const file = e.target.files?.[0]
     if (!file) return
 
+    // 前端校验文件大小
+    const maxSize = 150 * 1024 * 1024
+    if (file.size > maxSize) {
+      setError('文件过大，最大支持 150MB')
+      return
+    }
+
     setUploading(true)
     setError('')
 
     try {
-      const uploadFormData = new FormData()
-      uploadFormData.append('file', file)
-
-      const res = await fetch('/api/upload', {
+      // Step 1: 获取 Supabase 签名上传 URL（绕过 Vercel 4.5MB 限制）
+      const signRes = await fetch('/api/upload/sign', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: uploadFormData,
+        body: JSON.stringify({ filename: file.name }),
       })
 
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || '上传失败')
+      if (!signRes.ok) {
+        const errData = await signRes.json().catch(() => ({ error: '获取上传链接失败' }))
+        throw new Error(errData.error || '获取上传链接失败')
       }
 
-      const { url, filename } = await res.json()
+      const { signedUrl, publicUrl, filename: storedFilename } = await signRes.json()
+
+      // Step 2: 直接上传到 Supabase Storage（不经过 Vercel 服务器）
+      const uploadRes = await fetch(signedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      })
+
+      if (!uploadRes.ok) {
+        throw new Error('文件上传失败，请重试')
+      }
+
       setForm(prev => ({
         ...prev,
-        cad_file: filename,
-        cad_file_url: url,
+        cad_file: storedFilename,
+        cad_file_url: publicUrl,
       }))
     } catch (err: any) {
       setError(err.message || '上传失败')
