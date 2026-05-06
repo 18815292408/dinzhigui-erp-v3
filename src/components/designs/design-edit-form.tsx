@@ -79,13 +79,15 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
       const { signedUrl, publicUrl, filename: storedFilename } = await signRes.json()
 
       // Step 2: 直接上传到 Supabase Storage（不经过 Vercel 服务器）
+      // 不设置 Content-Type，避免触发额外的 CORS 预检限制
       const uploadRes = await fetch(signedUrl, {
         method: 'PUT',
         body: file,
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
       })
 
       if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '')
+        console.error('Upload to Supabase failed:', uploadRes.status, errText)
         throw new Error('文件上传失败，请重试')
       }
 

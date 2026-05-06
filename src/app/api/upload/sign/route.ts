@@ -27,7 +27,14 @@ export async function POST(request: Request) {
 
   const adminSupabase = await createAdminClient()
   const timestamp = Date.now()
-  const path = `${user.organization_id}/${timestamp}-${filename}`
+  // 清理文件名：只保留 ASCII 安全字符，避免 URL 编码问题导致签名校验失败
+  const ext = filename.includes('.') ? filename.substring(filename.lastIndexOf('.')) : ''
+  const safeName = filename
+    .substring(0, filename.lastIndexOf('.') > 0 ? filename.lastIndexOf('.') : filename.length)
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .substring(0, 64)
+  const cleanFilename = safeName + ext
+  const path = `${user.organization_id}/${timestamp}-${cleanFilename}`
 
   const { data, error } = await adminSupabase.storage
     .from('cad-files')
@@ -48,6 +55,6 @@ export async function POST(request: Request) {
     token: data.token,
     path: data.path,
     publicUrl: publicUrlData.publicUrl,
-    filename,
+    filename,                     // 原始文件名，用于界面展示
   })
 }
