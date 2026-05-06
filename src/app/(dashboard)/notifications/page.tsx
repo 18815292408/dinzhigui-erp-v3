@@ -229,10 +229,13 @@ export default function NotificationsPage() {
 
   const handleAccept = async () => {
     const acceptedId = acceptingNotification?.id
+    const acceptedOrderId = acceptingNotification?.order?.id
     // Clear the accepting notification to close modal
     setAcceptingNotification(null)
-    // Optimistically remove the accepted notification from the list
-    if (acceptedId) {
+    // 移除所有指向同一订单的通知（防止同一订单有多条通知时重复接单）
+    if (acceptedId && acceptedOrderId) {
+      setNotifications(prev => prev.filter(n => n.order?.id !== acceptedOrderId))
+    } else if (acceptedId) {
       setNotifications(prev => prev.filter(n => n.id !== acceptedId))
     }
   }

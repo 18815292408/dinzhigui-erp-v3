@@ -56,9 +56,14 @@ export async function POST(
     return NextResponse.json({ error: '订单不存在' }, { status: 404 })
   }
 
-  // Check if already accepted by another designer
-  if (order.status === 'pending_design' && order.assigned_designer !== user.id) {
-    return NextResponse.json({ error: '该订单已被其他设计师接单' }, { status: 400 })
+  // 只允许在 pending_design 状态下接单，防止重复接单
+  if (order.status !== 'pending_design') {
+    return NextResponse.json({ error: '该订单已被接单，无需重复操作' }, { status: 400 })
+  }
+
+  // 检查当前用户是否为该订单的指定设计师
+  if (order.assigned_designer && order.assigned_designer !== user.id) {
+    return NextResponse.json({ error: '该订单已被分配给其他设计师' }, { status: 400 })
   }
 
   // Calculate design due date
@@ -69,22 +74,36 @@ export async function POST(
     designDueDate = dueDate.toISOString().slice(0, 10)
   }
 
-  // Create a new design record for this order
-  // 注意：订单没有 customer_id 字段，客户信息通过 order_id 关联的订单获取
-  const { data: design, error: designError } = await adminSupabase
+  // 检查是否已存在该订单的设计方案（幂等性保护）
+  const { data: existingDesign } = await adminSupabase
     .from('designs')
-    .insert({
-      organization_id: order.organization_id,
-      created_by: user.id,
-      status: 'draft',
-      title: `${order.customer_name} - 设计方案`,
-      order_id: orderId,  // 通过 order_id 关联订单，客户信息从订单的 customer_name/customer_phone 获取
-    })
-    .select()
-    .single()
+    .select('id')
+    .eq('order_id', orderId)
+    .eq('created_by', user.id)
+    .maybeSingle()
 
-  if (designError) {
-    return NextResponse.json({ error: '创建设计方案失败: ' + designError.message }, { status: 500 })
+  let design: any
+  if (existingDesign) {
+    design = existingDesign
+  } else {
+    // Create a new design record for this order
+    // 注意：订单没有 customer_id 字段，客户信息通过 order_id 关联的订单获取
+    const { data: newDesign, error: designError } = await adminSupabase
+      .from('designs')
+      .insert({
+        organization_id: order.organization_id,
+        created_by: user.id,
+        status: 'draft',
+        title: `${order.customer_name} - 设计方案`,
+        order_id: orderId,  // 通过 order_id 关联订单，客户信息从订单的 customer_name/customer_phone 获取
+      })
+      .select()
+      .single()
+
+    if (designError) {
+      return NextResponse.json({ error: '创建设计方案失败: ' + designError.message }, { status: 500 })
+    }
+    design = newDesign
   }
 
   // Update order status and design deadline

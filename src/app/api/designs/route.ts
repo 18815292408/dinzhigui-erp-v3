@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   // 验证订单存在且属于当前组织
   const { data: order } = await adminSupabase
     .from('orders')
-    .select('id, organization_id, customer_id, assigned_designer')
+    .select('id, organization_id, customer_name, assigned_designer')
     .eq('id', order_id)
     .single()
 
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     .insert({
       organization_id: user.organization_id,
       order_id,
-      customer_id: customer_id || order.customer_id || null,
+      customer_id: customer_id || null,
       created_by: user.id,
       title: title || '',
       room_count: room_count || null,

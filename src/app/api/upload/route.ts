@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '不支持的文件类型' }, { status: 400 })
     }
 
-    // Max 100MB
-    if (file.size > 100 * 1024 * 1024) {
-      return NextResponse.json({ error: '文件过大，最大支持 100MB' }, { status: 400 })
+    // Max 150MB
+    if (file.size > 150 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件过大，最大支持 150MB' }, { status: 400 })
     }
 
     const supabase = await createClient()

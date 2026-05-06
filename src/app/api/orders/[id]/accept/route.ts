@@ -59,21 +59,30 @@ export async function POST(
     return NextResponse.json({ error: '订单不存在或无权操作' }, { status: 404 })
   }
 
-  // 接单成功后自动创建设计记录
-  const { error: designError } = await adminSupabase
+  // 接单成功后检查是否已存在该订单的设计方案（幂等性保护）
+  const { data: existingDesign } = await adminSupabase
     .from('designs')
-    .insert({
-      organization_id: order.organization_id,
-      order_id: orderId,
-      customer_id: order.customer_id || null,
-      created_by: user.id,
-      status: 'draft',
-      title: `${order.customer_name || '未知'} - 设计方案`,
-      attachments: '[]',
-    })
+    .select('id')
+    .eq('order_id', orderId)
+    .eq('created_by', user.id)
+    .maybeSingle()
 
-  if (designError) {
-    console.error('Create design on accept error:', designError)
+  if (!existingDesign) {
+    const { error: designError } = await adminSupabase
+      .from('designs')
+      .insert({
+        organization_id: order.organization_id,
+        order_id: orderId,
+        customer_id: null,
+        created_by: user.id,
+        status: 'draft',
+        title: `${order.customer_name || '未知'} - 设计方案`,
+        attachments: '[]',
+      })
+
+    if (designError) {
+      console.error('Create design on accept error:', designError)
+    }
   }
 
   return NextResponse.json(order)

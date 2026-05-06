@@ -265,7 +265,7 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
             />
           </label>
         )}
-        <p className="text-xs text-gray-400">支持 .dwg, .dxf, .pdf, .jpg, .png 格式，最大 50MB</p>
+        <p className="text-xs text-gray-400">支持 .dwg, .dxf, .pdf, .jpg, .png 格式，最大 150MB</p>
       </div>
 
       <div className="flex gap-4">

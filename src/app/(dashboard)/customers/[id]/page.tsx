@@ -20,18 +20,7 @@ async function getCustomer(id: string, organizationId: string) {
       .order('created_at', { ascending: false })
     if (err1) console.error('byName error:', err1)
 
-    let orders = byName || []
-
-    // 如果按 customer_name 找不到，尝试按 customer_id 找
-    if (!orders.length) {
-      const { data: byId, error: err2 } = await adminSupabase
-        .from('orders')
-        .select('*')
-        .eq('customer_id', data.id)
-        .order('created_at', { ascending: false })
-      if (err2) console.error('byId error:', err2)
-      orders = byId || []
-    }
+    const orders = byName || []
 
     // 单独补全用户关联（避免 join 失败导致整页崩）
     if (orders.length) {
