@@ -82,8 +82,9 @@ export function shouldShowInstallationInActiveList(input: {
 }) {
   const isActiveInstall = ACTIVE_INSTALLATION_STATUSES.includes(input.status as any)
   const isAfterSales = input.status === 'completed' && input.order?.status === 'in_after_sales'
+  const isCompletedButOrderActive = input.status === 'completed' && isActiveOrderStatus(input.order?.status || '')
 
-  if (!isActiveInstall && !isAfterSales) {
+  if (!isActiveInstall && !isAfterSales && !isCompletedButOrderActive) {
     return false
   }
 
