@@ -19,9 +19,9 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // 只有 owner/manager 可以操作
-  if (!['owner', 'manager'].includes(user.role)) {
-    return NextResponse.json({ error: '只有店长/老板可以进入售后流程' }, { status: 403 })
+  // owner/manager 可以操作，安装师傅也可以（安装完成后需要售后很常见）
+  if (!['owner', 'manager', 'installer'].includes(user.role)) {
+    return NextResponse.json({ error: '无权进入售后流程' }, { status: 403 })
   }
 
   const adminSupabase = await createAdminClient()
