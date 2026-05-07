@@ -36,6 +36,7 @@ function formatTime(value: string | null) {
 }
 
 const stageBadgeVariant: Record<string, string> = {
+  need_followup: 'default',
   pending_dispatch: 'secondary',
   pending_design: 'default',
   designing: 'default',
@@ -45,11 +46,15 @@ const stageBadgeVariant: Record<string, string> = {
   in_install: 'default',
 }
 
+const stageBadgeStyle: Record<string, string> = {
+  need_followup: 'bg-orange-100 text-orange-800',
+}
+
 export function ProcessOrderTable({ orders }: { orders: ProcessOrder[] }) {
   if (orders.length === 0) {
     return (
       <div className="rounded-lg border bg-white p-12 text-center">
-        <p className="text-sm text-muted-foreground">暂无推进中的订单</p>
+        <p className="text-sm text-muted-foreground">暂无推进中的订单/客户</p>
       </div>
     )
   }
@@ -57,7 +62,7 @@ export function ProcessOrderTable({ orders }: { orders: ProcessOrder[] }) {
   return (
     <div className="rounded-lg border bg-white">
       <div className="px-6 py-4 border-b">
-        <h2 className="text-base font-semibold">推进中订单</h2>
+        <h2 className="text-base font-semibold">推进中</h2>
       </div>
       <div className="overflow-x-auto">
         <Table>
@@ -80,7 +85,10 @@ export function ProcessOrderTable({ orders }: { orders: ProcessOrder[] }) {
                 <TableCell className="font-medium">{order.orderNo}</TableCell>
                 <TableCell>{order.customerName}</TableCell>
                 <TableCell>
-                  <Badge variant={(stageBadgeVariant[order.stage] as any) || 'secondary'}>
+                  <Badge
+                    variant={(stageBadgeVariant[order.stage] as any) || 'secondary'}
+                    className={stageBadgeStyle[order.stage] || ''}
+                  >
                     {order.stageLabel}
                   </Badge>
                 </TableCell>

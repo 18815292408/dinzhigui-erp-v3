@@ -31,6 +31,13 @@ interface FlowCard {
 
 const FLOW_CARDS: FlowCard[] = [
   {
+    key: 'order_creation',
+    label: '订单创建',
+    description: '待创建订单的客户',
+    statuses: [],
+    href: '/customers?tab=create',
+  },
+  {
     key: 'pending_dispatch',
     label: '待派单',
     description: '签单后等待分配设计师',
@@ -85,6 +92,27 @@ const STAGE_META: Record<string, { label: string; nextAction: string; href: stri
   in_after_sales: { label: '售后中', nextAction: '确认售后完成', href: '/customers' },
 }
 
+function getTimeRangeStart(range: string | undefined, now: Date): Date | null {
+  switch (range) {
+    case 'today': {
+      const start = new Date(now)
+      start.setHours(0, 0, 0, 0)
+      return start
+    }
+    case 'week': {
+      const start = new Date(now)
+      start.setDate(start.getDate() - 7)
+      start.setHours(0, 0, 0, 0)
+      return start
+    }
+    case 'month': {
+      return new Date(now.getFullYear(), now.getMonth(), 1)
+    }
+    default:
+      return null
+  }
+}
+
 function toAmount(value: number | string | null | undefined) {
   const numeric = Number(value || 0)
   return Number.isFinite(numeric) ? numeric : 0
@@ -108,25 +136,40 @@ function orderAmount(order: DashboardOrder) {
   return toAmount(order.final_order_amount) || toAmount(order.signed_amount)
 }
 
+type CreationCustomer = { id: string; name: string; phone: string; created_at: string }
+
 export function buildDashboardOverview({
   orders,
   users,
   customerMap = {},
   now = new Date(),
+  timeRange,
+  creationCustomerCount = 0,
+  creationCustomers = [],
 }: {
   orders: DashboardOrder[]
   users: DashboardUser[]
   customerMap?: Record<string, string>
   now?: Date
+  timeRange?: string
+  creationCustomerCount?: number
+  creationCustomers?: CreationCustomer[]
 }) {
   const names = userNameMap(users)
-  const cards = FLOW_CARDS.map((card) => ({
-    key: card.key,
-    label: card.label,
-    description: card.description,
-    href: card.href,
-    count: orders.filter((order) => card.statuses.includes(order.status as any)).length,
-  }))
+
+  const cards = FLOW_CARDS.map((card) => {
+    if (card.key === 'order_creation') {
+      // 统计待创建订单的客户数（没有订单也没有设计方案的客户）
+      return { key: card.key, label: card.label, description: card.description, href: card.href, count: creationCustomerCount }
+    }
+    return {
+      key: card.key,
+      label: card.label,
+      description: card.description,
+      href: card.href,
+      count: orders.filter((order) => card.statuses.includes(order.status as any)).length,
+    }
+  })
 
   cards.push({
     key: 'completed_this_month',
@@ -136,12 +179,32 @@ export function buildDashboardOverview({
     count: orders.filter((order) => order.status === 'completed' && isSameMonth(order.completed_at, now)).length,
   })
 
-  const processOrders = orders
+  // 待跟进客户条目（插入推进中表格最前面，最多 5 个）
+  const followupEntries = creationCustomers
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5)
+    .map((customer) => ({
+      id: customer.id,
+      orderNo: '-',
+      customerName: customer.name || '未知',
+      stage: 'need_followup',
+      stageLabel: '待跟进',
+      nextAction: '跟进客户',
+      href: `/customers/${customer.id}`,
+      customerId: customer.id,
+      salesName: '-',
+      designerName: '-',
+      installerName: '-',
+      amount: 0,
+      updatedAt: customer.created_at,
+    }))
+
+  const orderEntries = orders
     .filter((order) => Boolean(order.status && STAGE_META[order.status]))
     .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
     .slice(0, 12)
     .map((order) => {
-      const meta = STAGE_META[order.status || ''] || { label: order.status || '未知', nextAction: '查看订单', href: '/orders' }
+      const meta = STAGE_META[order.status || ''] || { label: order.status || '未知', nextAction: '查看订单', href: '/customers' }
       return {
         id: order.id,
         orderNo: order.order_no,
@@ -158,6 +221,8 @@ export function buildDashboardOverview({
         updatedAt: order.updated_at || order.created_at || null,
       }
     })
+
+  const processOrders = [...followupEntries, ...orderEntries]
 
   return {
     cards,

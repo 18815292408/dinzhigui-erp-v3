@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Brain, AlertTriangle, DollarSign, Calendar, Lightbulb, X, ChevronDown, ChevronUp, Sparkles, RefreshCw, History, Eye } from 'lucide-react'
+import { Brain, AlertTriangle, DollarSign, Calendar, Lightbulb, TrendingUp, X, ChevronDown, ChevronUp, Sparkles, RefreshCw, History, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -64,6 +64,12 @@ const categoryConfig: Record<string, { icon: any; color: string; bgColor: string
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
     label: '本周动态',
+  },
+  customer_followup: {
+    icon: TrendingUp,
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-50',
+    label: '客户跟进',
   },
   recommendations: {
     icon: Lightbulb,

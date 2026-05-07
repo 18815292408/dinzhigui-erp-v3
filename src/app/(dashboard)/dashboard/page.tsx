@@ -7,8 +7,9 @@ import { TimeFilter } from './time-filter'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
 import { buildDashboardOverview } from '@/lib/dashboard-overview'
+import { isActiveOrderStatus, orderBelongsToCustomer, shouldShowCustomerInCreateList } from '@/lib/order-workflow'
 
-async function getDashboardData() {
+async function getDashboardData(timeRange?: string) {
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')
 
@@ -43,16 +44,11 @@ async function getDashboardData() {
     `)
     .eq('organization_id', orgId)
 
-  if (!orders || orders.length === 0) {
-    return {
-      userRole: user.role,
-      overview: buildDashboardOverview({ orders: [], users: [], customerMap: {} }),
-    }
-  }
+  const safeOrders = orders || []
 
   // 收集所有用户 ID
   const userIds = new Set<string>()
-  for (const order of orders) {
+  for (const order of safeOrders) {
     if (order.created_by) userIds.add(order.created_by)
     if (order.assigned_designer) userIds.add(order.assigned_designer)
     if (order.assigned_installer) userIds.add(order.assigned_installer)
@@ -67,23 +63,23 @@ async function getDashboardData() {
     : { data: [] }
 
   // 构建 order_id -> customer_id 映射（优先通过 designs 表关联）
-  const orderIds = orders.map(o => o.id)
-  const { data: designs } = await adminSupabase
-    .from('designs')
-    .select('order_id, customer_id')
-    .in('order_id', orderIds)
+  const orderIds = safeOrders.map(o => o.id)
+  const { data: designs } = orderIds.length > 0
+    ? await adminSupabase
+        .from('designs')
+        .select('order_id, customer_id')
+        .in('order_id', orderIds)
+    : { data: [] }
 
   const customerMap: Record<string, string> = {}
-  // 优先使用 designs 表的关联
   for (const d of (designs || [])) {
     if (d.order_id && d.customer_id && !customerMap[d.order_id]) {
       customerMap[d.order_id] = d.customer_id
     }
   }
-  // 对于没有 design 关联的，通过 customer_name 查 customers 表兜底
   const missingOrderIds = orderIds.filter(id => !customerMap[id])
   if (missingOrderIds.length > 0) {
-    const missingNames = Array.from(new Set(orders.filter(o => missingOrderIds.includes(o.id)).map(o => o.customer_name).filter(Boolean)))
+    const missingNames = Array.from(new Set(safeOrders.filter(o => missingOrderIds.includes(o.id)).map(o => o.customer_name).filter(Boolean)))
     if (missingNames.length > 0) {
       const { data: customers } = await adminSupabase
         .from('customers')
@@ -96,7 +92,7 @@ async function getDashboardData() {
           nameToId[c.name] = c.id
         }
       }
-      for (const o of orders) {
+      for (const o of safeOrders) {
         if (!customerMap[o.id] && nameToId[o.customer_name]) {
           customerMap[o.id] = nameToId[o.customer_name]
         }
@@ -104,10 +100,37 @@ async function getDashboardData() {
     }
   }
 
+  // 统计待创建订单的客户数（没有订单也没有设计方案的客户）
+  const { data: allCustomers } = await adminSupabase
+    .from('customers')
+    .select('id, name, phone, created_at')
+    .eq('organization_id', orgId)
+
+  let creationCustomerCount = 0
+  const creationCustomers: { id: string; name: string; phone: string; created_at: string }[] = []
+  if (allCustomers) {
+    for (const c of allCustomers) {
+      const customerOrders = safeOrders.filter(o => orderBelongsToCustomer(c, o))
+      const customerDesigns = (designs || []).filter((d: any) => d.customer_id === c.id)
+      if (customerOrders.length === 0 && customerDesigns.length === 0) {
+        creationCustomerCount++
+        creationCustomers.push({
+          id: c.id,
+          name: c.name || '',
+          phone: c.phone || '',
+          created_at: c.created_at || '',
+        })
+      }
+    }
+  }
+
   const overview = buildDashboardOverview({
-    orders: orders || [],
+    orders: safeOrders,
     users: users || [],
     customerMap,
+    timeRange,
+    creationCustomerCount,
+    creationCustomers,
   })
 
   return {
@@ -116,8 +139,12 @@ async function getDashboardData() {
   }
 }
 
-export default async function DashboardPage() {
-  const data = await getDashboardData()
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { range?: string }
+}) {
+  const data = await getDashboardData(searchParams.range)
 
   const userRole = data?.userRole ?? 'sales'
   const overview = data?.overview

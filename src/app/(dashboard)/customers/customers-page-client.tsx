@@ -93,11 +93,21 @@ export function CustomersPageClient({ customers }: { customers: CustomersData })
     <>
       <Tabs value={currentTab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger value="create">订单创建</TabsTrigger>
-          <TabsTrigger value="followup">
+          <TabsTrigger
+            value="create"
+            className="aria-selected:bg-blue-600 aria-selected:text-white aria-selected:shadow-sm px-4"
+          >
+            订单创建
+          </TabsTrigger>
+          <TabsTrigger
+            value="followup"
+            className="aria-selected:bg-orange-500 aria-selected:text-white aria-selected:shadow-sm px-4"
+          >
             订单跟进
             {customers.withOrders.length > 0 && (
-              <Badge className="ml-2 bg-orange-500">{customers.withOrders.length}</Badge>
+              <Badge className="ml-2 bg-red-500 aria-selected:bg-white aria-selected:text-red-600">
+                {customers.withOrders.length}
+              </Badge>
             )}
           </TabsTrigger>
         </TabsList>
@@ -114,10 +124,10 @@ export function CustomersPageClient({ customers }: { customers: CustomersData })
                 key={key}
                 onClick={() => handleStageChange(key)}
                 className={cn(
-                  'px-3 py-1.5 text-sm rounded-full transition-colors',
+                  'px-3 py-1.5 text-sm rounded-full transition-colors font-medium',
                   currentStage === key
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 )}
               >
                 {filter.label}

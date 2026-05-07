@@ -155,13 +155,28 @@ export async function POST(request: NextRequest) {
     `)
     .eq('organization_id', orgId)
 
-  if (!orders || orders.length === 0) {
-    return NextResponse.json({ error: '暂无订单数据，无法分析' }, { status: 400 })
+  // 查询所有客户（用于客户跟进分析）
+  const { data: allCustomers } = await adminSupabase
+    .from('customers')
+    .select('id, name, phone, created_at')
+    .eq('organization_id', orgId)
+
+  // 统计待跟进客户（没有订单的客户）
+  const customerNamesWithOrders = new Set((orders || []).map(o => o.customer_name?.trim()))
+  const customersWithoutOrders = (allCustomers || []).filter((c: any) => {
+    const hasOrder = customerNamesWithOrders.has(c.name?.trim())
+    return !hasOrder
+  })
+
+  const safeOrders = orders || []
+
+  if (safeOrders.length === 0 && customersWithoutOrders.length === 0) {
+    return NextResponse.json({ error: '暂无数据，无法分析' }, { status: 400 })
   }
 
   // 2. 收集用户 ID 并查询
   const userIds = new Set<string>()
-  for (const o of orders) {
+  for (const o of safeOrders) {
     if (o.created_by) userIds.add(o.created_by)
     if (o.assigned_designer) userIds.add(o.assigned_designer)
     if (o.assigned_installer) userIds.add(o.assigned_installer)
@@ -180,7 +195,7 @@ export async function POST(request: NextRequest) {
   // 3. 构建分析数据
   const now = new Date()
 
-  const orderAnalysisData: OrderForAnalysis[] = orders
+  const orderAnalysisData: OrderForAnalysis[] = safeOrders
     .map(o => {
       const status = o.status || 'unknown'
       const stageLabel = STAGE_LABEL[status] || status
@@ -227,14 +242,38 @@ export async function POST(request: NextRequest) {
   const bottleneckOrders = orderAnalysisData.filter(o => o.is_bottleneck)
   const totalPendingAmount = activeOrders.reduce((sum, o) => sum + o.amount, 0)
 
+  // 订单创建趋势
+  const createdThisMonth = orderAnalysisData.filter(o => {
+    const created = new Date(o.created_at)
+    return created.getFullYear() === now.getFullYear() && created.getMonth() === now.getMonth()
+  })
+  const createdLastMonth = orderAnalysisData.filter(o => {
+    const created = new Date(o.created_at)
+    const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+    const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+    return created.getFullYear() === lastMonthYear && created.getMonth() === lastMonth
+  })
+  const creationTrend = createdLastMonth.length > 0
+    ? ((createdThisMonth.length - createdLastMonth.length) / createdLastMonth.length * 100).toFixed(0)
+    : 'N/A'
+
   const summary = {
-    total_orders: orders.length,
+    total_orders: safeOrders.length,
     active_orders: activeOrders.length,
-    completed_orders: orders.length - activeOrders.length,
+    completed_orders: safeOrders.length - activeOrders.length,
     completed_this_week: completedThisWeek.length,
     created_this_week: createdThisWeek.length,
+    created_this_month: createdThisMonth.length,
+    created_last_month: createdLastMonth.length,
+    creation_trend: creationTrend,
     bottleneck_count: bottleneckOrders.length,
     total_pending_amount: totalPendingAmount,
+    customers_without_orders: customersWithoutOrders.length,
+    customers_without_orders_list: customersWithoutOrders.slice(0, 15).map((c: any) => ({
+      name: c.name,
+      phone: c.phone || '无',
+      days_waiting: Math.floor((now.getTime() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+    })),
     stage_distribution: {} as Record<string, number>,
   }
 
@@ -256,6 +295,9 @@ export async function POST(request: NextRequest) {
 - 进行中订单：${summary.active_orders}
 - 已完成订单：${summary.completed_orders}
 - 本周新增：${summary.created_this_week}
+- 本月新增订单：${summary.created_this_month}
+- 上周新增订单：${summary.created_last_month}
+- 待跟进客户数：${summary.customers_without_orders}
 - 本周完成：${summary.completed_this_week}
 - 卡点订单数：${summary.bottleneck_count}
 - 各阶段待收款总额：${totalPendingAmount.toLocaleString('zh-CN')} 元
@@ -273,12 +315,15 @@ export async function POST(request: NextRequest) {
 - 待出货(>1天为卡点)：款项已到，等待出货/指派安装
 - 安装中(>7天为卡点)：安装师傅正在安装
 
+## 待跟进客户（没有订单）明细
+${JSON.stringify(summary.customers_without_orders_list, null, 2)}
+
 ## 全部订单明细
 ${JSON.stringify(orderAnalysisData, null, 2)}
 
 ## 分析要求
 
-请按以下4个类别生成洞察，返回严格JSON格式：
+请按以下5个类别生成洞察，返回严格JSON格式：
 
 1. **bottleneck_orders**（流程卡点）- priority: high
    找出所有 is_bottleneck=true 的订单，按阶段分组说明。每阶段列出卡住的订单号和客户名，说明卡了几天、谁负责。
@@ -296,7 +341,13 @@ ${JSON.stringify(orderAnalysisData, null, 2)}
    - 有没有阶段推进的好消息
    title 示例：「本周新增X单，完成X单」
 
-4. **recommendations**（运营建议）- priority: high（这是最重要的输出）
+4. **customer_followup**（客户跟进）- priority: high
+   - 找出等待超过3天仍未跟进的客户
+   - 分析是否存在大量客户未转化的问题
+   - 评估获客效率，给出跟单建议
+   title 示例：「X位客户等待跟进超3天」
+
+5. **recommendations**（运营建议，这是最重要的输出）
    基于以上全部数据，给出老板可立即执行的建议，不限制数量但每条都要有价值。每条建议要：
    - 具体到订单号或人员
    - 说明为什么紧急/重要
@@ -308,6 +359,7 @@ ${JSON.stringify(orderAnalysisData, null, 2)}
 - bottleneck_orders 包含 orders 数组，每项：order_no, customer_name, stage_label, days_in_stage, amount, responsible
 - revenue_attention 包含 items 数组，每项：label（如"待打款阶段"）, amount, order_count, detail（如"共3笔，最大单笔¥8000"）
 - weekly_pulse 包含 items 数组，每项：label, detail
+- customer_followup 包含 items 数组，每项：label, detail
 - recommendations 包含 recommendations 字符串数组
 - 所有文字必须使用中文
 - 如果某类别没有数据，也要返回该类别，但内容说明"暂无"
@@ -319,6 +371,7 @@ ${JSON.stringify(orderAnalysisData, null, 2)}
     {"category": "bottleneck_orders", "title": "...", "summary": "...", "priority": "high", "orders": [...]},
     {"category": "revenue_attention", "title": "...", "summary": "...", "priority": "high", "items": [...]},
     {"category": "weekly_pulse", "title": "...", "summary": "...", "priority": "medium", "items": [...]},
+    {"category": "customer_followup", "title": "...", "summary": "...", "priority": "high", "items": [...]},
     {"category": "recommendations", "title": "运营建议", "summary": "...", "priority": "low", "recommendations": [...]}
   ],
   "summary": "整体分析总结（50字以内）"
@@ -336,7 +389,7 @@ ${JSON.stringify(orderAnalysisData, null, 2)}
         messages: [
           {
             role: 'system',
-            content: '你是一个专业的全屋定制门店运营顾问，擅长从订单流程数据中发现瓶颈和资金风险。你的分析直接给老板看，要抓重点、讲人话、给行动方案。只返回JSON，不要其他文字。所有输出必须使用中文。',
+            content: '你是一个专业的全屋定制门店运营顾问，擅长从订单流程数据中发现瓶颈、资金风险和订单创建趋势。你的分析直接给老板看，要抓重点、讲人话、给行动方案。只返回JSON，不要其他文字。所有输出必须使用中文。',
           },
           {
             role: 'user',
@@ -378,7 +431,7 @@ ${JSON.stringify(orderAnalysisData, null, 2)}
         organization_id: orgId,
         insights: parsedResult.insights,
         summary: parsedResult.summary,
-        total_customers: orders.length,
+        total_customers: safeOrders.length,
         analyzed_by: user.id,
       })
 
@@ -390,7 +443,7 @@ ${JSON.stringify(orderAnalysisData, null, 2)}
       insights: parsedResult.insights,
       summary: parsedResult.summary,
       analyzed_at: analyzedAt,
-      total_orders: orders.length,
+      total_orders: safeOrders.length,
     })
   } catch (error) {
     console.error('Analysis error:', error)
