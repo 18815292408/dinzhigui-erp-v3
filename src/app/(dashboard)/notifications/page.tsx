@@ -297,10 +297,10 @@ export default function NotificationsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 lg:space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">通知中心</h1>
+            <h1 className="text-xl lg:text-2xl font-semibold">通知中心</h1>
           </div>
         </div>
         <div className="flex items-center justify-center py-20">
@@ -312,10 +312,10 @@ export default function NotificationsPage() {
 
   return (
     <>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 lg:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">通知中心</h1>
+            <h1 className="text-xl lg:text-2xl font-semibold">通知中心</h1>
             {unreadCount > 0 && (
               <Badge variant="destructive" className="h-6 min-w-[2rem] justify-center">
                 {unreadCount}
@@ -323,16 +323,16 @@ export default function NotificationsPage() {
             )}
           </div>
           {unreadCount > 0 && (
-            <Button variant="outline" size="sm" onClick={markAllAsRead}>
+            <Button variant="outline" size="sm" onClick={markAllAsRead} className="w-full sm:w-auto">
               全部标为已读
             </Button>
           )}
         </div>
 
         <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'unread' | 'pending_orders')}>
-          <TabsList>
-            <TabsTrigger value="all">全部</TabsTrigger>
-            <TabsTrigger value="unread">
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="all" className="flex-1 sm:flex-none">全部</TabsTrigger>
+            <TabsTrigger value="unread" className="flex-1 sm:flex-none">
               未读
               {unreadCount > 0 && (
                 <Badge variant="destructive" className="ml-2 h-5 min-w-[1.25rem] justify-center">
@@ -340,7 +340,7 @@ export default function NotificationsPage() {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="pending_orders">
+            <TabsTrigger value="pending_orders" className="flex-1 sm:flex-none">
               待接单
               {pendingOrdersCount > 0 && (
                 <Badge variant="default" className="ml-2 h-5 min-w-[1.25rem] justify-center bg-green-500">

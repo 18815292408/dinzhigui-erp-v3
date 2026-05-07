@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { Phone, Home, Trash2 } from 'lucide-react'
 
 export function CustomerList({ customers }: { customers: any[] }) {
   const router = useRouter()
@@ -44,31 +45,39 @@ export function CustomerList({ customers }: { customers: any[] }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 lg:space-y-4">
       {deleteError && (
         <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-2">{deleteError}</div>
       )}
       {customers.map((customer) => (
         <Link key={customer.id} href={`/customers/${customer.id}`}>
-          <Card className="p-4 hover:bg-gray-50 transition-colors cursor-pointer">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">{customer.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {customer.phone} · {customer.house_type || '未填写房型'}
+          <Card className="p-3 lg:p-4 hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-medium text-sm lg:text-base truncate">{customer.name}</h3>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs lg:text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Phone className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
+                    {customer.phone}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Home className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
+                    {customer.house_type || '未填写房型'}
+                  </span>
                   {customer.orders?.length > 0 && (
-                    <span className="ml-2 text-xs text-gray-400">
+                    <span className="text-xs text-gray-400">
                       （{customer.orders.length}个已完成订单）
                     </span>
                   )}
-                </p>
+                </div>
               </div>
               <button
                 onClick={(e) => handleDeleteCustomer(customer.id, e)}
                 disabled={deleteId === customer.id}
-                className="text-sm text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                className="shrink-0 w-8 h-8 lg:w-9 lg:h-9 rounded-full flex items-center justify-center text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors"
+                aria-label="删除"
               >
-                {deleteId === customer.id ? '删除中...' : '删除'}
+                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           </Card>

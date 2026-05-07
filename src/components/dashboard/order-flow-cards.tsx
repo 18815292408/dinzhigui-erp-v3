@@ -25,25 +25,25 @@ const colorByKey: Record<string, string> = {
 
 export function OrderFlowCards({ cards }: { cards: any[] }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3 lg:gap-4">
       {cards.map((card) => {
         const Icon = iconByKey[card.key] || ClipboardList
         return (
           <Link
             key={card.key}
             href={card.href}
-            className="rounded-lg border bg-white p-4 transition-colors hover:bg-gray-50"
+            className="rounded-lg border bg-white p-3 lg:p-4 transition-colors hover:bg-gray-50"
           >
             <div className="flex items-center justify-between gap-2">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colorByKey[card.key] || 'bg-gray-100 text-gray-700'}`}>
-                <Icon className="h-5 w-5" />
+              <div className={`flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-lg ${colorByKey[card.key] || 'bg-gray-100 text-gray-700'}`}>
+                <Icon className="h-4 w-4 lg:h-5 lg:w-5" />
               </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
             </div>
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground">{card.label}</p>
-              <p className="mt-1 text-3xl font-semibold">{card.count}</p>
-              <p className="mt-2 min-h-[32px] text-xs text-muted-foreground">{card.description}</p>
+            <div className="mt-3 lg:mt-4">
+              <p className="text-xs lg:text-sm text-muted-foreground">{card.label}</p>
+              <p className="mt-1 text-2xl lg:text-3xl font-semibold">{card.count}</p>
+              <p className="mt-1 lg:mt-2 min-h-[24px] lg:min-h-[32px] text-[11px] lg:text-xs text-muted-foreground">{card.description}</p>
             </div>
           </Link>
         )

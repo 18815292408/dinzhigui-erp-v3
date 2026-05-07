@@ -15,7 +15,9 @@ import {
   Factory,
   CheckCircle,
   HelpCircle,
+  X,
 } from 'lucide-react'
+import { useEffect } from 'react'
 
 interface NavItem {
   name: string
@@ -40,11 +42,110 @@ const navigation: NavItem[] = [
   { name: '使用说明', href: '/help', icon: HelpCircle, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'settings' },
 ]
 
-export function Sidebar({ userRole, userEmail, canManageUsers }: { userRole: string; userEmail: string; canManageUsers?: boolean }) {
+function NavContent({ userRole, userEmail, canManageUsers, onNavigate }: { userRole: string; userEmail: string; canManageUsers?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname()
 
   return (
-    <div className="fixed left-0 top-0 h-full w-[280px] bg-apple-gray-50/95 backdrop-blur-2xl border-r border-apple-gray-200/50 z-50">
+    <nav className="p-4 space-y-5">
+      {/* 数据看板 - 独立置顶 */}
+      <div className="space-y-1">
+        {navigation
+          .filter((item) => item.section === 'top' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL) && (!item.requiresManageUsers || userRole === 'owner' || canManageUsers))
+          .map((item) => {
+            const isActive = pathname === item.href
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200',
+                  isActive
+                    ? 'bg-apple-blue text-white shadow-lg shadow-apple-blue/30'
+                    : 'text-apple-gray-900 hover:bg-apple-gray-100 active:bg-apple-gray-200'
+                )}
+              >
+                <Icon className={cn('w-5 h-5', isActive ? '' : 'text-apple-gray-700')} />
+                {item.name}
+              </Link>
+            )
+          })}
+      </div>
+
+      {/* 业务流程 - 竖线串联 */}
+      <div className="relative">
+        <p className="px-4 mb-1 text-[11px] font-medium text-apple-gray-400 uppercase tracking-wider">
+          业务流程
+        </p>
+        {/* 连续竖线：从第一个圆点到最后一个圆点 */}
+        <div className="absolute left-[22px] top-[44px] bottom-[22px] w-px bg-apple-gray-200" />
+        <div className="space-y-0">
+          {navigation
+            .filter((item) => item.section === 'workflow' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL))
+            .map((item) => {
+              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+              const Icon = item.icon
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200',
+                    isActive
+                      ? 'bg-apple-blue text-white shadow-lg shadow-apple-blue/30'
+                      : 'text-apple-gray-900 hover:bg-apple-gray-100 active:bg-apple-gray-200'
+                  )}
+                >
+                  {/* 圆点 */}
+                  <div className="relative flex items-center justify-center w-[11px] z-10">
+                    <div className={cn(
+                      'w-[7px] h-[7px] rounded-full border-2',
+                      isActive ? 'border-white bg-white' : 'border-apple-gray-300 bg-white'
+                    )} />
+                  </div>
+                  <Icon className={cn('w-5 h-5', isActive ? '' : 'text-apple-gray-700')} />
+                  {item.name}
+                </Link>
+              )
+            })}
+        </div>
+      </div>
+
+      {/* 系统设置 - 间距分隔 */}
+      <div className="pt-1 space-y-1">
+        {navigation
+          .filter((item) => item.section === 'settings' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL) && (!item.requiresManageUsers || userRole === 'owner' || canManageUsers))
+          .map((item) => {
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200',
+                  isActive
+                    ? 'bg-apple-blue text-white shadow-lg shadow-apple-blue/30'
+                    : 'text-apple-gray-900 hover:bg-apple-gray-100 active:bg-apple-gray-200'
+                )}
+              >
+                <Icon className={cn('w-5 h-5', isActive ? '' : 'text-apple-gray-700')} />
+                {item.name}
+              </Link>
+            )
+          })}
+      </div>
+    </nav>
+  )
+}
+
+export function Sidebar({ userRole, userEmail, canManageUsers }: { userRole: string; userEmail: string; canManageUsers?: boolean }) {
+  return (
+    <div className="hidden lg:block fixed left-0 top-0 h-full w-[280px] bg-apple-gray-50/95 backdrop-blur-2xl border-r border-apple-gray-200/50 z-50">
       {/* Logo area */}
       <div className="px-6 py-5 border-b border-apple-gray-200/30">
         <Link href="/dashboard" className="flex items-center gap-3 group">
@@ -58,103 +159,70 @@ export function Sidebar({ userRole, userEmail, canManageUsers }: { userRole: str
         </Link>
       </div>
 
-      {/* Navigation */}
-      <nav className="p-4 space-y-5">
-        {/* 数据看板 - 独立置顶 */}
-        <div className="space-y-1">
-          {navigation
-            .filter((item) => item.section === 'top' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL) && (!item.requiresManageUsers || userRole === 'owner' || canManageUsers))
-            .map((item) => {
-              const isActive = pathname === item.href
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200',
-                    isActive
-                      ? 'bg-apple-blue text-white shadow-lg shadow-apple-blue/30'
-                      : 'text-apple-gray-900 hover:bg-apple-gray-100 active:bg-apple-gray-200'
-                  )}
-                >
-                  <Icon className={cn('w-5 h-5', isActive ? '' : 'text-apple-gray-700')} />
-                  {item.name}
-                </Link>
-              )
-            })}
-        </div>
-
-        {/* 业务流程 - 竖线串联 */}
-        <div className="relative">
-          <p className="px-4 mb-1 text-[11px] font-medium text-apple-gray-400 uppercase tracking-wider">
-            业务流程
-          </p>
-          {/* 连续竖线：从第一个圆点到最后一个圆点 */}
-          <div className="absolute left-[22px] top-[44px] bottom-[22px] w-px bg-apple-gray-200" />
-          <div className="space-y-0">
-            {navigation
-              .filter((item) => item.section === 'workflow' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL))
-              .map((item) => {
-                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
-                const Icon = item.icon
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200',
-                      isActive
-                        ? 'bg-apple-blue text-white shadow-lg shadow-apple-blue/30'
-                        : 'text-apple-gray-900 hover:bg-apple-gray-100 active:bg-apple-gray-200'
-                    )}
-                  >
-                    {/* 圆点 */}
-                    <div className="relative flex items-center justify-center w-[11px] z-10">
-                      <div className={cn(
-                        'w-[7px] h-[7px] rounded-full border-2',
-                        isActive ? 'border-white bg-white' : 'border-apple-gray-300 bg-white'
-                      )} />
-                    </div>
-                    <Icon className={cn('w-5 h-5', isActive ? '' : 'text-apple-gray-700')} />
-                    {item.name}
-                  </Link>
-                )
-              })}
-          </div>
-        </div>
-
-        {/* 系统设置 - 间距分隔 */}
-        <div className="pt-1 space-y-1">
-          {navigation
-            .filter((item) => item.section === 'settings' && item.roles.includes(userRole) && (!item.adminOnly || userEmail === ADMIN_EMAIL) && (!item.requiresManageUsers || userRole === 'owner' || canManageUsers))
-            .map((item) => {
-              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200',
-                    isActive
-                      ? 'bg-apple-blue text-white shadow-lg shadow-apple-blue/30'
-                      : 'text-apple-gray-900 hover:bg-apple-gray-100 active:bg-apple-gray-200'
-                  )}
-                >
-                  <Icon className={cn('w-5 h-5', isActive ? '' : 'text-apple-gray-700')} />
-                  {item.name}
-                </Link>
-              )
-            })}
-        </div>
-      </nav>
+      <NavContent userRole={userRole} userEmail={userEmail} canManageUsers={canManageUsers} />
 
       {/* Bottom info */}
       <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-apple-gray-200/30">
         <div className="bg-gradient-to-br from-apple-blue/10 to-apple-purple/10 rounded-xl p-4">
           <p className="text-[13px] font-medium text-apple-gray-900">当前用户：{userRole === 'owner' && userEmail === ADMIN_EMAIL ? '管理员' : userRole === 'owner' ? '老板' : userRole === 'manager' ? '店长' : userRole === 'designer' ? '设计师' : userRole === 'sales' ? '导购' : '安装人员'}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function MobileSidebar({ isOpen, onClose, userRole, userEmail, canManageUsers }: { isOpen: boolean; onClose: () => void; userRole: string; userEmail: string; canManageUsers?: boolean }) {
+  // 禁止背景滚动
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
+
+  return (
+    <div className="lg:hidden fixed inset-0 z-[100]">
+      {/* 遮罩层 */}
+      <div 
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+      {/* 抽屉 */}
+      <div className="absolute left-0 top-0 h-full w-[280px] bg-apple-gray-50/95 backdrop-blur-2xl border-r border-apple-gray-200/50 shadow-2xl animate-in slide-in-from-left duration-300">
+        {/* Logo area */}
+        <div className="px-6 py-5 border-b border-apple-gray-200/30 flex items-center justify-between">
+          <Link href="/dashboard" className="flex items-center gap-3 group" onClick={onClose}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
+              <img src="/logo.png" alt="定制大师" className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <h1 className="text-[17px] font-semibold text-apple-gray-900">定制大师</h1>
+              <p className="text-[12px] text-apple-gray-500">ERP管理系统</p>
+            </div>
+          </Link>
+          <button 
+            onClick={onClose}
+            className="w-9 h-9 rounded-full hover:bg-apple-gray-100 active:bg-apple-gray-200 flex items-center justify-center transition-colors"
+          >
+            <X className="w-5 h-5 text-apple-gray-700" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto h-[calc(100%-180px)]">
+          <NavContent userRole={userRole} userEmail={userEmail} canManageUsers={canManageUsers} onNavigate={onClose} />
+        </div>
+
+        {/* Bottom info */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-apple-gray-200/30">
+          <div className="bg-gradient-to-br from-apple-blue/10 to-apple-purple/10 rounded-xl p-3">
+            <p className="text-[13px] font-medium text-apple-gray-900">当前用户：{userRole === 'owner' && userEmail === ADMIN_EMAIL ? '管理员' : userRole === 'owner' ? '老板' : userRole === 'manager' ? '店长' : userRole === 'designer' ? '设计师' : userRole === 'sales' ? '导购' : '安装人员'}</p>
+          </div>
         </div>
       </div>
     </div>

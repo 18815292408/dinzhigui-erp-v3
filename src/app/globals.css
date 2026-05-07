@@ -70,6 +70,36 @@
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* 禁止iOS上的文字大小调整 */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* 移动端基础字体大小调整 */
+  @media (max-width: 1023px) {
+    html {
+      font-size: 15px;
+    }
+  }
+
+  @media (max-width: 639px) {
+    html {
+      font-size: 14px;
+    }
+  }
+
+  /* 触摸设备优化 */
+  @media (pointer: coarse) {
+    /* 增大触摸目标 */
+    button, a, input, select, textarea {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* 移除iOS上的点击高亮 */
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
   }
 }
 
@@ -103,4 +133,44 @@
   .from-apple-green { --tw-gradient-from: var(--apple-green); }
 
   .shadow-apple-blue { --tw-shadow-color: var(--apple-blue); }
+
+  /* 移动端表格横向滚动 */
+  .mobile-table-container {
+    @apply w-full overflow-x-auto -mx-3 px-3 lg:mx-0 lg:px-0;
+  }
+
+  /* 移动端卡片列表 */
+  .mobile-card-list {
+    @apply space-y-3 lg:space-y-4;
+  }
+
+  /* 隐藏滚动条但保持滚动功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 动画关键帧 - 用于移动端侧边栏 */
+@keyframes slide-in-from-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation-duration: 0.3s;
+  animation-fill-mode: both;
+}
+
+.slide-in-from-left {
+  animation-name: slide-in-from-left;
 }

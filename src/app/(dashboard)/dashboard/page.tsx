@@ -150,12 +150,12 @@ export default async function DashboardPage({
   const overview = data?.overview
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-semibold text-apple-gray-900 tracking-tight">数据看板</h1>
-          <p className="text-[15px] text-apple-gray-500 mt-1">按订单流程查看门店运营状态</p>
+          <h1 className="text-xl lg:text-[28px] font-semibold text-apple-gray-900 tracking-tight">数据看板</h1>
+          <p className="text-sm lg:text-[15px] text-apple-gray-500 mt-1">按订单流程查看门店运营状态</p>
         </div>
         <TimeFilter />
       </div>

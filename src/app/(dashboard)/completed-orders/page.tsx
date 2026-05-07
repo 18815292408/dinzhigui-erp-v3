@@ -53,10 +53,10 @@ export default async function CompletedOrdersPage() {
   const orders = await getCompletedOrders()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">已完成订单</h1>
-        <p className="text-muted-foreground">查看已归档的完成订单和客户信息</p>
+        <h1 className="text-xl lg:text-2xl font-semibold">已完成订单</h1>
+        <p className="text-sm text-muted-foreground">查看已归档的完成订单和客户信息</p>
       </div>
 
       <CompletedOrderList orders={orders} userRole={user?.role || ''} />

@@ -35,11 +35,11 @@ export default async function FactoriesPage() {
   const { factories, user } = await getFactories()
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 lg:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">工厂管理</h1>
-          <p className="text-muted-foreground">管理合作的家具工厂</p>
+          <h1 className="text-xl lg:text-2xl font-semibold">工厂管理</h1>
+          <p className="text-sm text-muted-foreground">管理合作的家具工厂</p>
         </div>
       </div>
 

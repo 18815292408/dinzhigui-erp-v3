@@ -102,76 +102,76 @@ export default async function AdminPage() {
     .limit(10)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 lg:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">管理员面板</h1>
-          <p className="text-muted-foreground">系统全局管理与数据概览</p>
+          <h1 className="text-xl lg:text-2xl font-semibold">管理员面板</h1>
+          <p className="text-sm text-muted-foreground">系统全局管理与数据概览</p>
         </div>
         <SyncUsersButton />
       </div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 lg:gap-4">
         <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">账号总数</p>
-            <p className="text-3xl font-bold">{stats.total}</p>
+          <CardContent className="pt-3 lg:pt-4">
+            <p className="text-xs lg:text-sm text-muted-foreground">账号总数</p>
+            <p className="text-xl lg:text-3xl font-bold">{stats.total}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">导购</p>
-            <p className="text-3xl font-bold text-blue-600">{stats.sales}</p>
+          <CardContent className="pt-3 lg:pt-4">
+            <p className="text-xs lg:text-sm text-muted-foreground">导购</p>
+            <p className="text-xl lg:text-3xl font-bold text-blue-600">{stats.sales}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">店长</p>
-            <p className="text-3xl font-bold text-indigo-600">{stats.manager}</p>
+          <CardContent className="pt-3 lg:pt-4">
+            <p className="text-xs lg:text-sm text-muted-foreground">店长</p>
+            <p className="text-xl lg:text-3xl font-bold text-indigo-600">{stats.manager}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">设计师</p>
-            <p className="text-3xl font-bold text-green-600">{stats.designer}</p>
+          <CardContent className="pt-3 lg:pt-4">
+            <p className="text-xs lg:text-sm text-muted-foreground">设计师</p>
+            <p className="text-xl lg:text-3xl font-bold text-green-600">{stats.designer}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">安装/售后</p>
-            <p className="text-3xl font-bold text-orange-600">{stats.installer}</p>
+          <CardContent className="pt-3 lg:pt-4">
+            <p className="text-xs lg:text-sm text-muted-foreground">安装/售后</p>
+            <p className="text-xl lg:text-3xl font-bold text-orange-600">{stats.installer}</p>
           </CardContent>
         </Card>
         <Card className="bg-purple-50">
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">老板总数</p>
-            <p className="text-3xl font-bold text-purple-600">{allManagers?.length || 0}</p>
+          <CardContent className="pt-3 lg:pt-4">
+            <p className="text-xs lg:text-sm text-muted-foreground">老板总数</p>
+            <p className="text-xl lg:text-3xl font-bold text-purple-600">{allManagers?.length || 0}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* 老板账号管理 */}
-        <Card className="col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>老板账号管理</CardTitle>
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="text-base lg:text-lg">老板账号管理</CardTitle>
             <Link href="/settings/admin/managers/new">
-              <Button size="sm">+ 添加老板</Button>
+              <Button size="sm" className="w-full sm:w-auto">+ 添加老板</Button>
             </Link>
           </CardHeader>
           <CardContent>
             {allManagers && allManagers.length > 0 ? (
               <div className="space-y-3">
                 {allManagers.map((mgr: any) => (
-                  <div key={mgr.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{mgr.display_name}</p>
-                      <p className="text-sm text-muted-foreground">
+                  <div key={mgr.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm lg:text-base truncate">{mgr.display_name}</p>
+                      <p className="text-xs lg:text-sm text-muted-foreground">
                         {mgr.email || '无邮箱'} {mgr.phone ? `· ${mgr.phone}` : ''}
                       </p>
                     </div>
-                    <Badge className="bg-purple-100 text-purple-800">{getRoleLabel(mgr)}</Badge>
+                    <Badge className="bg-purple-100 text-purple-800 w-fit">{getRoleLabel(mgr)}</Badge>
                   </div>
                 ))}
               </div>
@@ -184,11 +184,11 @@ export default async function AdminPage() {
         {/* 活跃账号 */}
         <Card>
           <CardHeader>
-            <CardTitle>近7日活跃</CardTitle>
+            <CardTitle className="text-base lg:text-lg">近7日活跃</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-green-600">{recentUsers?.length || 0}</p>
-            <p className="text-sm text-muted-foreground">个账号</p>
+            <p className="text-xl lg:text-3xl font-bold text-green-600">{recentUsers?.length || 0}</p>
+            <p className="text-xs lg:text-sm text-muted-foreground">个账号</p>
           </CardContent>
         </Card>
       </div>

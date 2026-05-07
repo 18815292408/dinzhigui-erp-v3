@@ -61,10 +61,11 @@ export function ProcessOrderTable({ orders }: { orders: ProcessOrder[] }) {
 
   return (
     <div className="rounded-lg border bg-white">
-      <div className="px-6 py-4 border-b">
-        <h2 className="text-base font-semibold">推进中</h2>
+      <div className="px-4 lg:px-6 py-3 lg:py-4 border-b">
+        <h2 className="text-sm lg:text-base font-semibold">推进中</h2>
       </div>
-      <div className="overflow-x-auto">
+      {/* Desktop Table */}
+      <div className="hidden lg:block overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -120,6 +121,58 @@ export function ProcessOrderTable({ orders }: { orders: ProcessOrder[] }) {
             ))}
           </TableBody>
         </Table>
+      </div>
+      {/* Mobile Card List */}
+      <div className="lg:hidden divide-y">
+        {orders.map((order) => (
+          <div key={order.id} className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-sm">{order.orderNo}</span>
+              <Badge
+                variant={(stageBadgeVariant[order.stage] as any) || 'secondary'}
+                className={stageBadgeStyle[order.stage] || ''}
+              >
+                {order.stageLabel}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-muted-foreground">客户：</span>
+                <span>{order.customerName}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">金额：</span>
+                <span className="font-medium">{formatMoney(order.amount)}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">销售：</span>
+                <span>{order.salesName}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">设计师：</span>
+                <span>{order.designerName}</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {formatTime(order.updatedAt)}
+              </span>
+              {order.customerId ? (
+                <Link
+                  href={`/customers/${order.customerId}`}
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  {order.nextAction}
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  {order.nextAction}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

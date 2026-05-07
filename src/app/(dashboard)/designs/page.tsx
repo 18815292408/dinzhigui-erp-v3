@@ -76,10 +76,10 @@ export default async function DesignsPage() {
   const designs: any[] = await getDesignTasks()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">方案管理</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl lg:text-2xl font-semibold">方案管理</h1>
+        <p className="text-sm text-muted-foreground">
           {user?.role === 'designer' ? '查看分配给您的设计任务' : '查看所有设计方案'}
         </p>
       </div>

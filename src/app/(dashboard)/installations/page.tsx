@@ -142,10 +142,10 @@ export default async function InstallationsPage() {
   const installations: any[] = await getInstallations()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">安装管理</h1>
-        <p className="text-muted-foreground">查看和处理安装单</p>
+        <h1 className="text-xl lg:text-2xl font-semibold">安装管理</h1>
+        <p className="text-sm text-muted-foreground">查看和处理安装单</p>
       </div>
 
       <InstallationList installations={installations} />
