@@ -23,14 +23,18 @@ export async function GET(request: NextRequest) {
     .select(`
       *,
       customers(id, name, phone, house_type),
-      orders(id, order_no, status, customer_name, signed_amount)
+      orders(id, order_no, status, customer_name, signed_amount, created_by, assigned_designer)
     `)
     .eq('organization_id', user.organization_id)
     .order('created_at', { ascending: false })
 
-  // 设计师只看到自己参与的设计任务（通过订单关联）
+  // 设计师只看到自己创建的设计任务
   if (user.role === 'designer') {
-    query = query.eq('orders.assigned_designer', user.id)
+    query = query.eq('created_by', user.id)
+  }
+  // 销售只能看到与自己订单相关的设计方案
+  else if (user.role === 'sales') {
+    query = query.eq('orders.created_by', user.id)
   }
 
   const { data, error } = await query

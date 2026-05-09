@@ -21,21 +21,46 @@ async function getCustomers() {
 
   const adminSupabase = await createAdminClient()
 
-  const { data: allCustomers } = await adminSupabase
+  let customerQuery = adminSupabase
     .from('customers')
     .select('*')
     .eq('organization_id', user.organization_id)
-    .order('created_at', { ascending: false })
 
-  const { data: allOrders } = await adminSupabase
+  // 销售只能看自己创建的客户
+  if (user.role === 'sales') {
+    customerQuery = customerQuery.eq('created_by', user.id)
+  }
+
+  const { data: allCustomers } = await customerQuery.order('created_at', { ascending: false })
+
+  // 按角色过滤订单
+  let orderQuery = adminSupabase
     .from('orders')
-    .select('id, customer_name, customer_phone, status, order_no, signed_amount')
+    .select('id, customer_name, customer_phone, status, order_no, signed_amount, created_by, assigned_designer, assigned_installer')
     .eq('organization_id', user.organization_id)
 
-  const { data: allDesigns } = await adminSupabase
+  if (user.role === 'sales') {
+    orderQuery = orderQuery.eq('created_by', user.id)
+  } else if (user.role === 'designer') {
+    orderQuery = orderQuery.eq('assigned_designer', user.id)
+  } else if (user.role === 'installer') {
+    orderQuery = orderQuery.eq('assigned_installer', user.id)
+  }
+
+  const { data: allOrders } = await orderQuery
+
+  // 按角色过滤设计方案
+  let designQuery = adminSupabase
     .from('designs')
-    .select('customer_id, order_id, status')
+    .select('customer_id, order_id, status, created_by')
     .eq('organization_id', user.organization_id)
+
+  // 设计师只能看自己创建的设计方案
+  if (user.role === 'designer') {
+    designQuery = designQuery.eq('created_by', user.id)
+  }
+
+  const { data: allDesigns } = await designQuery
 
   const orderStatusById = new Map(
     (allOrders || []).map((o: any) => [o.id, o.status])

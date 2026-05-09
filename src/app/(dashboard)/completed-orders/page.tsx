@@ -14,12 +14,23 @@ async function getCompletedOrders() {
   if (!user) return []
 
   const adminSupabase = await createAdminClient()
-  const { data: orders } = await adminSupabase
+
+  // 按角色过滤已完成订单
+  let query = adminSupabase
     .from('orders')
     .select('*')
     .eq('organization_id', user.organization_id)
     .eq('status', COMPLETED_ORDER_STATUS)
-    .order('completed_at', { ascending: false })
+
+  if (user.role === 'sales') {
+    query = query.eq('created_by', user.id)
+  } else if (user.role === 'designer') {
+    query = query.eq('assigned_designer', user.id)
+  } else if (user.role === 'installer') {
+    query = query.eq('assigned_installer', user.id)
+  }
+
+  const { data: orders } = await query.order('completed_at', { ascending: false })
 
   const orderIds = (orders || []).map((order: any) => order.id)
   if (orderIds.length === 0) return []

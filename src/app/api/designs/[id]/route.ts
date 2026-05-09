@@ -20,19 +20,40 @@ export async function GET(
   }
 
   const adminSupabase = await createAdminClient()
-  const { data, error } = await adminSupabase
+
+  // 先获取设计方案
+  let query = adminSupabase
     .from('designs')
     .select(`
       *,
       customers(id, name, phone, house_type),
-      orders(id, order_no, status, customer_name, customer_phone, signed_amount)
+      orders(id, order_no, status, customer_name, signed_amount, created_by, assigned_designer)
     `)
     .eq('id', params.id)
     .eq('organization_id', user.organization_id)
-    .single()
 
-  if (error) {
-    return NextResponse.json({ error: '方案不存在' }, { status: 404 })
+  if (user.role === 'designer') {
+    query = query.eq('created_by', user.id)
+  }
+
+  const { data, error } = await query.single()
+
+  if (error || !data) {
+    return NextResponse.json({ error: '方案不存在或无权访问' }, { status: 404 })
+  }
+
+  // 对于销售，需要进一步检查关联订单权限
+  if (user.role === 'sales') {
+    if (data.orders?.created_by !== user.id) {
+      return NextResponse.json({ error: '无权访问该方案' }, { status: 403 })
+    }
+  }
+
+  // 对于设计师，如果上面通过 created_by 过滤了，这里还需要检查订单分配
+  if (user.role === 'designer') {
+    if (data.created_by !== user.id && data.orders?.assigned_designer !== user.id) {
+      return NextResponse.json({ error: '无权访问该方案' }, { status: 403 })
+    }
   }
 
   return NextResponse.json({ data })
@@ -55,6 +76,35 @@ export async function PUT(
 
   const body = await request.json()
   const adminSupabase = await createAdminClient()
+
+  // 先查询设计方案，检查权限
+  const { data: existingDesign, error: getError } = await adminSupabase
+    .from('designs')
+    .select('*, orders!inner(created_by, assigned_designer)')
+    .eq('id', params.id)
+    .eq('organization_id', user.organization_id)
+    .single()
+
+  if (getError || !existingDesign) {
+    return NextResponse.json({ error: '方案不存在或无权修改' }, { status: 404 })
+  }
+
+  // 权限检查：非 owner/manager 只能修改自己创建或被分配的设计方案
+  if (!['owner', 'manager'].includes(user.role)) {
+    if (user.role === 'designer') {
+      const isCreator = existingDesign.created_by === user.id
+      const isAssigned = existingDesign.orders?.assigned_designer === user.id
+      if (!isCreator && !isAssigned) {
+        return NextResponse.json({ error: '无权修改该设计方案' }, { status: 403 })
+      }
+    } else if (user.role === 'sales') {
+      if (existingDesign.orders?.created_by !== user.id) {
+        return NextResponse.json({ error: '无权修改该设计方案' }, { status: 403 })
+      }
+    } else {
+      return NextResponse.json({ error: '无权修改设计方案' }, { status: 403 })
+    }
+  }
 
   // 将前端传入的 price 映射到数据库的 price
   if (body.price !== undefined) {

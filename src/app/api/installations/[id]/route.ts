@@ -22,15 +22,41 @@ export async function GET(
   }
 
   const adminSupabase = await createAdminClient()
-  const { data, error } = await adminSupabase
+
+  // 先获取安装记录
+  let query = adminSupabase
     .from('installations')
     .select('*')
     .eq('id', params.id)
     .eq('organization_id', user.organization_id)
-    .single()
 
-  if (error) {
-    return NextResponse.json({ error: '安装单不存在' }, { status: 404 })
+  if (user.role === 'installer') {
+    query = query.eq('assigned_to', user.id)
+  }
+
+  const { data, error } = await query.single()
+
+  if (error || !data) {
+    return NextResponse.json({ error: '安装单不存在或无权访问' }, { status: 404 })
+  }
+
+  // 对于销售/设计师，需要进一步检查关联订单权限
+  if (user.role === 'sales' || user.role === 'designer') {
+    if (data.order_id) {
+      const { data: order } = await adminSupabase
+        .from('orders')
+        .select('created_by, assigned_designer')
+        .eq('id', data.order_id)
+        .single()
+
+      const hasPermission = user.role === 'designer'
+        ? order?.assigned_designer === user.id
+        : order?.created_by === user.id
+
+      if (!hasPermission) {
+        return NextResponse.json({ error: '无权访问该安装单' }, { status: 403 })
+      }
+    }
   }
 
   return NextResponse.json({ data })
@@ -54,17 +80,42 @@ export async function PUT(
   const body = await request.json()
   const adminSupabase = await createAdminClient()
 
-  // 获取当前安装单状态和反馈
-  const { data: current, error: fetchError } = await adminSupabase
+  // 先获取安装记录，检查权限
+  let getQuery = adminSupabase
     .from('installations')
-    .select('status, feedback')
+    .select('*, orders!inner(created_by, assigned_designer, assigned_installer)')
     .eq('id', params.id)
     .eq('organization_id', user.organization_id)
-    .single()
 
-  if (fetchError || !current) {
-    return NextResponse.json({ error: '安装单不存在' }, { status: 404 })
+  if (user.role === 'installer') {
+    getQuery = getQuery.eq('assigned_to', user.id)
   }
+
+  const { data: existingInstallation, error: getError } = await getQuery.single()
+
+  if (getError || !existingInstallation) {
+    return NextResponse.json({ error: '安装单不存在或无权修改' }, { status: 404 })
+  }
+
+  // 对于销售/设计师，需要进一步检查关联订单权限
+  if (user.role === 'sales' || user.role === 'designer') {
+    const hasPermission = user.role === 'designer'
+      ? existingInstallation.orders?.assigned_designer === user.id
+      : existingInstallation.orders?.created_by === user.id
+
+    if (!hasPermission) {
+      return NextResponse.json({ error: '无权修改该安装单' }, { status: 403 })
+    }
+  }
+
+  // 非 owner/manager/installer 不允许修改
+  if (!['owner', 'manager', 'installer'].includes(user.role)) {
+    return NextResponse.json({ error: '无权修改安装记录' }, { status: 403 })
+  }
+
+  // 获取当前安装单状态和反馈
+  const current = existingInstallation
+  const fetchError = getError
 
   const newStatus = body.status
   const currentStatus = current.status

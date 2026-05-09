@@ -14,16 +14,33 @@ async function getDesignTasks() {
 
   const adminSupabase = await createAdminClient()
 
-  // 设计师：看到分配给自己的设计任务（订单状态 pending_design / designing / pending_order）
+  // 设计师：看到自己创建的设计任务
   let query = adminSupabase
     .from('designs')
     .select('*')
     .eq('organization_id', user.organization_id)
     .in('status', ['draft', 'submitted'])
 
-  // 设计师只看分配给自己的
+  // 设计师只看自己创建的
   if (user.role === 'designer') {
     query = query.eq('created_by', user.id)
+  }
+  // 销售只能看到与自己订单相关的设计方案
+  else if (user.role === 'sales') {
+    // 先获取自己的订单ID
+    const { data: myOrders } = await adminSupabase
+      .from('orders')
+      .select('id')
+      .eq('organization_id', user.organization_id)
+      .eq('created_by', user.id)
+
+    const myOrderIds = (myOrders || []).map((o: any) => o.id)
+    if (myOrderIds.length > 0) {
+      query = query.in('order_id', myOrderIds)
+    } else {
+      // 没有订单则返回空
+      return []
+    }
   }
 
   let { data, error } = await query

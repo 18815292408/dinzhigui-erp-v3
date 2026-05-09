@@ -16,8 +16,25 @@ async function getInstallations() {
   const adminSupabase = await createAdminClient()
   const orgId = user.organization_id
 
+  // 先查询当前用户有权限的订单ID列表
+  let orderQuery = adminSupabase
+    .from('orders')
+    .select('id, customer_name, customer_phone, status')
+    .eq('organization_id', orgId)
+
+  if (user.role === 'sales') {
+    orderQuery = orderQuery.eq('created_by', user.id)
+  } else if (user.role === 'designer') {
+    orderQuery = orderQuery.eq('assigned_designer', user.id)
+  } else if (user.role === 'installer') {
+    orderQuery = orderQuery.eq('assigned_installer', user.id)
+  }
+
+  const { data: relatedOrders } = await orderQuery
+  const allowedOrderIds = new Set((relatedOrders || []).map((o: any) => o.id))
+
   // 1. 查询活跃安装记录（包含售后中的已完成安装）
-  const { data } = await adminSupabase
+  let installQuery = adminSupabase
     .from('installations')
     .select(`
       *,
@@ -27,21 +44,31 @@ async function getInstallations() {
     `)
     .eq('organization_id', orgId)
     .in('status', [...ACTIVE_INSTALLATION_STATUSES, 'completed'])
-    .order('created_at', { ascending: false })
 
-  // 2. 查询所有订单（用于关联过滤）
-  const { data: relatedOrders } = await adminSupabase
-    .from('orders')
-    .select('id, customer_name, customer_phone, status')
-    .eq('organization_id', orgId)
+  // 安装人员只能看自己负责的安装记录
+  if (user.role === 'installer') {
+    installQuery = installQuery.eq('assigned_to', user.id)
+  }
+
+  const { data } = await installQuery.order('created_at', { ascending: false })
 
   // 3. 查找孤儿订单：处于 pending_shipment / in_install 但没有对应 installation 记录
   const existingOrderIds = new Set((data || []).map((i: any) => i.order_id).filter(Boolean))
-  const { data: installPhaseOrders } = await adminSupabase
+  let orphanQuery = adminSupabase
     .from('orders')
     .select('id, status, order_no, customer_name, customer_phone, house_type, assigned_installer, organization_id')
     .eq('organization_id', orgId)
     .in('status', ['pending_shipment', 'in_install', 'in_after_sales'])
+
+  if (user.role === 'sales') {
+    orphanQuery = orphanQuery.eq('created_by', user.id)
+  } else if (user.role === 'designer') {
+    orphanQuery = orphanQuery.eq('assigned_designer', user.id)
+  } else if (user.role === 'installer') {
+    orphanQuery = orphanQuery.eq('assigned_installer', user.id)
+  }
+
+  const { data: installPhaseOrders } = await orphanQuery
 
   const orphanOrders = (installPhaseOrders || []).filter(
     (o: any) => !existingOrderIds.has(o.id)
@@ -89,7 +116,7 @@ async function getInstallations() {
     await Promise.all(creations)
 
     // 重新查询安装记录（包含刚创建的）
-    const { data: refreshed } = await adminSupabase
+    let refreshedQuery = adminSupabase
       .from('installations')
       .select(`
         *,
@@ -99,10 +126,19 @@ async function getInstallations() {
       `)
       .eq('organization_id', orgId)
       .in('status', [...ACTIVE_INSTALLATION_STATUSES, 'completed'])
-      .order('created_at', { ascending: false })
 
-    return (refreshed || []).filter((installation: any) =>
-      shouldShowInstallationInActiveList({
+    if (user.role === 'installer') {
+      refreshedQuery = refreshedQuery.eq('assigned_to', user.id)
+    }
+
+    const { data: refreshed } = await refreshedQuery.order('created_at', { ascending: false })
+
+    return (refreshed || []).filter((installation: any) => {
+       // 权限过滤：销售和设计师检查订单是否在允许列表中
+       if (user.role === 'sales' || user.role === 'designer') {
+         if (!allowedOrderIds.has(installation.order_id)) return false
+       }
+      return shouldShowInstallationInActiveList({
         status: installation.status,
         order: installation.orders,
         customerOrders: (relatedOrders || []).filter((order: any) =>
@@ -116,12 +152,16 @@ async function getInstallations() {
           )
         ),
       })
-    )
+    })
   }
 
   // 5. 正常过滤返回
-  return (data || []).filter((installation: any) =>
-    shouldShowInstallationInActiveList({
+  return (data || []).filter((installation: any) => {
+    // 权限过滤：销售和设计师检查订单是否在允许列表中
+    if (user.role === 'sales' || user.role === 'designer') {
+      if (!allowedOrderIds.has(installation.order_id)) return false
+    }
+    return shouldShowInstallationInActiveList({
       status: installation.status,
       order: installation.orders,
       customerOrders: (relatedOrders || []).filter((order: any) =>
@@ -135,7 +175,7 @@ async function getInstallations() {
         )
       ),
     })
-  )
+  })
 }
 
 export default async function InstallationsPage() {

@@ -19,15 +19,22 @@ export async function GET(
   }
 
   const adminSupabase = await createAdminClient()
-  const { data, error } = await adminSupabase
+
+  let query = adminSupabase
     .from('customers')
     .select('*')
     .eq('id', params.id)
     .eq('organization_id', user.organization_id)
-    .single()
 
-  if (error) {
-    return NextResponse.json({ error: '客户不存在' }, { status: 404 })
+  // 销售只能看自己创建的客户
+  if (user.role === 'sales') {
+    query = query.eq('created_by', user.id)
+  }
+
+  const { data, error } = await query.single()
+
+  if (error || !data) {
+    return NextResponse.json({ error: '客户不存在或无权访问' }, { status: 404 })
   }
 
   return NextResponse.json({ data })
@@ -50,6 +57,23 @@ export async function PUT(
 
   const body = await request.json()
   const adminSupabase = await createAdminClient()
+
+  // 先查询客户，检查权限
+  let getQuery = adminSupabase
+    .from('customers')
+    .select('*')
+    .eq('id', params.id)
+    .eq('organization_id', user.organization_id)
+
+  if (user.role === 'sales') {
+    getQuery = getQuery.eq('created_by', user.id)
+  }
+
+  const { data: existingCustomer, error: getError } = await getQuery.single()
+
+  if (getError || !existingCustomer) {
+    return NextResponse.json({ error: '客户不存在或无权修改' }, { status: 404 })
+  }
 
   // Remove fields that shouldn't be updated directly
   const { id, organization_id, created_at, created_by, ...updates } = body
@@ -93,6 +117,23 @@ export async function DELETE(
   }
 
   const adminSupabase = await createAdminClient()
+
+  // 先查询客户，检查权限
+  let getQuery = adminSupabase
+    .from('customers')
+    .select('*')
+    .eq('id', params.id)
+    .eq('organization_id', user.organization_id)
+
+  if (user.role === 'sales') {
+    getQuery = getQuery.eq('created_by', user.id)
+  }
+
+  const { data: existingCustomer, error: getError } = await getQuery.single()
+
+  if (getError || !existingCustomer) {
+    return NextResponse.json({ error: '客户不存在或无权删除' }, { status: 404 })
+  }
 
   // 检查是否有关联订单
   const { data: relatedOrders } = await adminSupabase

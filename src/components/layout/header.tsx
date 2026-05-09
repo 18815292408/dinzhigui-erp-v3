@@ -18,6 +18,12 @@ export function Header({
   const handleLogout = async () => {
     // Call logout API
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    // 清理 localStorage 中的会话数据
+    localStorage.removeItem('session')
+    localStorage.removeItem('session_id')
+    localStorage.removeItem('user')
+    localStorage.removeItem('organization')
+    sessionStorage.clear()
     router.push('/login')
     router.refresh()
   }

@@ -21,15 +21,25 @@ export async function GET(
 
   const adminSupabase = await createAdminClient()
 
-  // 补全用户关联（避免 join 失败）
-  const { data: order } = await adminSupabase
+  // 先查询订单，带权限过滤
+  let query = adminSupabase
     .from('orders')
     .select('*, designs(*)')
     .eq('id', params.id)
-    .single()
+    .eq('organization_id', user.organization_id)
+
+  if (user.role === 'sales') {
+    query = query.eq('created_by', user.id)
+  } else if (user.role === 'designer') {
+    query = query.eq('assigned_designer', user.id)
+  } else if (user.role === 'installer') {
+    query = query.eq('assigned_installer', user.id)
+  }
+
+  const { data: order } = await query.single()
 
   if (!order) {
-    return NextResponse.json({ error: '订单不存在' }, { status: 404 })
+    return NextResponse.json({ error: '订单不存在或无权访问' }, { status: 404 })
   }
 
   // 补全设计师/安装师名字
@@ -81,6 +91,27 @@ export async function PUT(
   const adminSupabase = await createAdminClient()
   const body = await request.json()
 
+  // 先查询订单，检查权限
+  let getQuery = adminSupabase
+    .from('orders')
+    .select('*')
+    .eq('id', params.id)
+    .eq('organization_id', user.organization_id)
+
+  if (user.role === 'sales') {
+    getQuery = getQuery.eq('created_by', user.id)
+  } else if (user.role === 'designer') {
+    getQuery = getQuery.eq('assigned_designer', user.id)
+  } else if (user.role === 'installer') {
+    getQuery = getQuery.eq('assigned_installer', user.id)
+  }
+
+  const { data: existingOrder, error: getError } = await getQuery.single()
+
+  if (getError || !existingOrder) {
+    return NextResponse.json({ error: '订单不存在或无权修改' }, { status: 404 })
+  }
+
   // owner/manager 可以操作，sales 只能操作自己创建的订单
   let query = adminSupabase
     .from('orders')
@@ -89,9 +120,14 @@ export async function PUT(
       updated_at: new Date().toISOString()
     })
     .eq('id', params.id)
+    .eq('organization_id', user.organization_id)
 
   if (user.role === 'sales') {
     query = query.eq('created_by', user.id)
+  } else if (user.role === 'designer') {
+    query = query.eq('assigned_designer', user.id)
+  } else if (user.role === 'installer') {
+    query = query.eq('assigned_installer', user.id)
   }
 
   const { data, error } = await query.select().single()

@@ -25,8 +25,8 @@ async function getDashboardData(timeRange?: string) {
   const adminSupabase = await createAdminClient()
   const orgId = user.organization_id
 
-  // 查询所有订单
-  const { data: orders } = await adminSupabase
+  // 查询订单（按角色过滤）
+  let orderQuery = adminSupabase
     .from('orders')
     .select(`
       id,
@@ -43,6 +43,16 @@ async function getDashboardData(timeRange?: string) {
       assigned_installer
     `)
     .eq('organization_id', orgId)
+
+  if (user.role === 'sales') {
+    orderQuery = orderQuery.eq('created_by', user.id)
+  } else if (user.role === 'designer') {
+    orderQuery = orderQuery.eq('assigned_designer', user.id)
+  } else if (user.role === 'installer') {
+    orderQuery = orderQuery.eq('assigned_installer', user.id)
+  }
+
+  const { data: orders } = await orderQuery
 
   const safeOrders = orders || []
 
@@ -100,11 +110,17 @@ async function getDashboardData(timeRange?: string) {
     }
   }
 
-  // 统计待创建订单的客户数（没有订单也没有设计方案的客户）
-  const { data: allCustomers } = await adminSupabase
+  // 统计待创建订单的客户数（按角色过滤）
+  let customerQuery = adminSupabase
     .from('customers')
     .select('id, name, phone, created_at')
     .eq('organization_id', orgId)
+
+  if (user.role === 'sales') {
+    customerQuery = customerQuery.eq('created_by', user.id)
+  }
+
+  const { data: allCustomers } = await customerQuery
 
   let creationCustomerCount = 0
   const creationCustomers: { id: string; name: string; phone: string; created_at: string }[] = []

@@ -16,11 +16,18 @@ export async function GET(request: NextRequest) {
   }
 
   const adminSupabase = await createAdminClient()
-  const { data, error } = await adminSupabase
+
+  let query = adminSupabase
     .from('customers')
     .select('*')
     .eq('organization_id', user.organization_id)
-    .order('created_at', { ascending: false })
+
+  // 销售只能看自己创建的客户
+  if (user.role === 'sales') {
+    query = query.eq('created_by', user.id)
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false })
 
   if (error) {
     console.error('Get customers error:', error)

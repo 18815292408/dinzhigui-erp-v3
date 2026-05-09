@@ -16,14 +16,46 @@ export async function GET(request: NextRequest) {
   }
 
   const adminSupabase = await createAdminClient()
-  const { data, error } = await adminSupabase
+
+  // 安装人员只能看自己负责的安装记录
+  // 销售/设计师需要通过订单关联过滤，先获取相关订单ID
+  let orderIds: string[] | null = null
+  if (user.role === 'sales' || user.role === 'designer') {
+    let orderQuery = adminSupabase
+      .from('orders')
+      .select('id')
+      .eq('organization_id', user.organization_id)
+
+    if (user.role === 'sales') {
+      orderQuery = orderQuery.eq('created_by', user.id)
+    } else if (user.role === 'designer') {
+      orderQuery = orderQuery.eq('assigned_designer', user.id)
+    }
+
+    const { data: orders } = await orderQuery
+    orderIds = (orders || []).map((o: any) => o.id)
+
+    // 如果没有相关订单，直接返回空数组
+    if (!orderIds || orderIds.length === 0) {
+      return NextResponse.json({ data: [] })
+    }
+  }
+
+  let query = adminSupabase
     .from('installations')
     .select(`
       *,
       orders(order_no)
     `)
     .eq('organization_id', user.organization_id)
-    .order('created_at', { ascending: false })
+
+  if (user.role === 'installer') {
+    query = query.eq('assigned_to', user.id)
+  } else if (orderIds && orderIds.length > 0) {
+    query = query.in('order_id', orderIds)
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false })
 
   if (error) {
     console.error('Get installations error:', error)

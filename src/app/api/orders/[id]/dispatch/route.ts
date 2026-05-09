@@ -32,6 +32,7 @@ export async function POST(
       updated_at: new Date().toISOString()
     })
     .eq('id', orderId)
+    .eq('organization_id', user.organization_id)
 
   if (user.role === 'sales') {
     query = query.eq('created_by', user.id)
