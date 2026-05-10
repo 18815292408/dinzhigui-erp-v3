@@ -39,7 +39,7 @@ const STAGE_FILTERS: Record<string, { label: string; statuses: string[] }> = {
   after_sales: { label: '售后中', statuses: ['in_after_sales'] },
 }
 
-export function CustomersPageClient({ customers }: { customers: CustomersData }) {
+export function CustomersPageClient({ customers, userRole }: { customers: CustomersData; userRole: string | null }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -47,6 +47,8 @@ export function CustomersPageClient({ customers }: { customers: CustomersData })
   const currentTab = searchParams.get('tab') === 'followup' ? 'followup' : 'create'
   const stageParam = searchParams.get('stage')
   const currentStage = stageParam && STAGE_FILTERS[stageParam] ? stageParam : 'all'
+  const isPersonalMode = searchParams.get('personal') === 'true'
+  const isManager = userRole === 'manager'
 
   const handleTabChange = useCallback((newTab: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -56,6 +58,7 @@ export function CustomersPageClient({ customers }: { customers: CustomersData })
       params.delete('tab')
       params.delete('stage')
     }
+    // 切换标签页时保留 personal 参数
     router.replace(`${pathname}?${params.toString()}`)
   }, [router, pathname, searchParams])
 
@@ -69,6 +72,16 @@ export function CustomersPageClient({ customers }: { customers: CustomersData })
     }
     router.replace(`${pathname}?${params.toString()}`)
   }, [router, pathname, searchParams])
+
+  const handlePersonalModeToggle = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (isPersonalMode) {
+      params.delete('personal')
+    } else {
+      params.set('personal', 'true')
+    }
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [router, pathname, searchParams, isPersonalMode])
 
   // 每阶段订单数量
   const stageCounts = useMemo(() => {
@@ -112,6 +125,33 @@ export function CustomersPageClient({ customers }: { customers: CustomersData })
           </TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {isManager && (
+        <div className="flex items-center gap-3 py-2">
+          <button
+            onClick={handlePersonalModeToggle}
+            className={cn(
+              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+              isPersonalMode ? 'bg-blue-600' : 'bg-gray-300'
+            )}
+            aria-pressed={isPersonalMode}
+            aria-label={isPersonalMode ? '只看我的订单' : '显示全部订单'}
+          >
+            <span
+              className={cn(
+                'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200',
+                isPersonalMode ? 'translate-x-6' : 'translate-x-1'
+              )}
+            />
+          </button>
+          <span className={cn(
+            'text-sm font-medium transition-colors duration-200',
+            isPersonalMode ? 'text-blue-600' : 'text-gray-600'
+          )}>
+            {isPersonalMode ? '只看我的订单' : '显示全部订单'}
+          </span>
+        </div>
+      )}
 
       {currentTab === 'create' ? (
         <CustomerList customers={customers.withoutOrders} />

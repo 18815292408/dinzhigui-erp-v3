@@ -6,7 +6,7 @@ import { isActiveOrderStatus, orderBelongsToCustomer, shouldShowCustomerInCreate
 import { parseSessionUser } from '@/lib/types'
 import { CustomersPageClient } from './customers-page-client'
 
-async function getCustomers() {
+async function getCustomers(personalMode: boolean) {
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')
 
@@ -27,7 +27,8 @@ async function getCustomers() {
     .eq('organization_id', user.organization_id)
 
   // 销售只能看自己创建的客户
-  if (user.role === 'sales') {
+  // 店长在个人订单模式下也只能看自己创建的客户
+  if (user.role === 'sales' || (user.role === 'manager' && personalMode)) {
     customerQuery = customerQuery.eq('created_by', user.id)
   }
 
@@ -45,6 +46,8 @@ async function getCustomers() {
     orderQuery = orderQuery.eq('assigned_designer', user.id)
   } else if (user.role === 'installer') {
     orderQuery = orderQuery.eq('assigned_installer', user.id)
+  } else if (user.role === 'manager' && personalMode) {
+    orderQuery = orderQuery.eq('created_by', user.id)
   }
 
   const { data: allOrders } = await orderQuery
@@ -96,8 +99,20 @@ async function getCustomers() {
   }
 }
 
-export default async function CustomersPage() {
-  const customers = await getCustomers()
+export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const params = await searchParams
+  const personalMode = params.personal === 'true'
+  const customers = await getCustomers(personalMode)
+
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session')
+  let userRole: string | null = null
+  if (sessionCookie) {
+    const user = parseSessionUser(sessionCookie.value)
+    if (user) {
+      userRole = user.role
+    }
+  }
 
   return (
     <div className="space-y-4 lg:space-y-6">
@@ -111,7 +126,7 @@ export default async function CustomersPage() {
         </Link>
       </div>
 
-      <CustomersPageClient customers={customers} />
+      <CustomersPageClient customers={customers} userRole={userRole} />
     </div>
   )
 }
