@@ -16,9 +16,8 @@ export function FollowUpForm({ customerId }: { customerId: string }) {
 
     try {
       // Get current customer data first
-      const res = await fetch(`/api/customers?id=${customerId}`, { credentials: 'include' })
-      const { data } = await res.json()
-      const customer = data?.[0]
+      const res = await fetch(`/api/customers/${customerId}`, { credentials: 'include' })
+      const { data: customer } = await res.json()
 
       const existingFollowUps = typeof customer?.follow_ups === 'string'
         ? JSON.parse(customer.follow_ups || '[]')
