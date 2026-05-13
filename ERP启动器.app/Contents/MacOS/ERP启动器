@@ -1,0 +1,11 @@
+#!/usr/bin/osascript
+
+on run
+    set projectDir to "/Users/zy/Documents/zhongyaoruanjian/dinzhiguiERP"
+    set killPortCmd to "kill -9 $(lsof -ti :3000) 2>/dev/null || true"
+    
+    tell application "Terminal"
+        activate
+        do script "cd '" & projectDir & "' && " & killPortCmd & " && sleep 1 && ./run.sh"
+    end tell
+end run
