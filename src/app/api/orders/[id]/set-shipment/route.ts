@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { normalizeFactoryRecords, setFactoryShipmentDate } from '@/lib/factory-shipment'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser, type SessionUser } from '@/lib/types'
+import { pushUrgentToWechat } from '@/lib/serverchan'
 
 async function getSessionUser() {
   const cookieStore = await cookies()
@@ -173,11 +174,21 @@ export async function POST(
     await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: installer_id,
+      sender_id: user.id,
       type: 'new_install',
       priority: 'urgent',
       title: '新订单待安装',
       summary: `订单 ${order.order_no} (${order.customer_name || '未知'}) 已分配给您，请确认接单`,
       related_order_id: orderId,
+    })
+
+    // Push to WeChat
+    await pushUrgentToWechat(adminSupabase, installer_id, {
+      type: 'new_install',
+      title: '新订单待安装',
+      summary: `订单 ${order.order_no} (${order.customer_name || '未知'}) 已分配给您，请确认接单`,
+      orderNo: order.order_no,
+      customerName: order.customer_name,
     })
   }
 

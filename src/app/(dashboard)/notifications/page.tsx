@@ -82,6 +82,19 @@ interface Notification {
     customer_name: string
     status: string
   }
+  sender?: {
+    id: string
+    display_name: string
+    role: string
+  }
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: '老板',
+  manager: '店长',
+  designer: '设计师',
+  sales: '导购',
+  installer: '安装工'
 }
 
 function AcceptModal({ notification, onClose, onAccepted, setSuccessMessage, setErrorMessage }: {
@@ -405,6 +418,12 @@ export default function NotificationsPage() {
                       <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                         {notification.summary}
                       </p>
+
+                      {notification.sender && (
+                        <p className="text-xs text-muted-foreground mb-2">
+                          来自：{ROLE_LABELS[notification.sender.role] || notification.sender.role} {notification.sender.display_name}
+                        </p>
+                      )}
 
                       {notification.order && (
                         <p className="text-xs text-muted-foreground mb-2">

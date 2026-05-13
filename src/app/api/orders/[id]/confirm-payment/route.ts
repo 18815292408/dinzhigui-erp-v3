@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
+import { pushUrgentToWechat } from '@/lib/serverchan'
 
 // PATCH：仅确认打款（不带安装师傅），订单进入 pending_shipment
 export async function PATCH(
@@ -123,11 +124,21 @@ export async function POST(
     await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: installer_id,
+      sender_id: user.id,
       type: 'new_install',
       priority: 'urgent',
       title: '新订单待安装',
       summary: `订单 ${order.order_no} (${order.customer_name || '未知'}) 已打款，待出货，请准备接单`,
       related_order_id: orderId
+    })
+
+    // Push to WeChat
+    await pushUrgentToWechat(adminSupabase, installer_id, {
+      type: 'new_install',
+      title: '新订单待安装',
+      summary: `订单 ${order.order_no} (${order.customer_name || '未知'}) 已打款，待出货，请准备接单`,
+      orderNo: order.order_no,
+      customerName: order.customer_name,
     })
   }
 

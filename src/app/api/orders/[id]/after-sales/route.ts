@@ -52,6 +52,7 @@ export async function POST(
     await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: order.assigned_installer,
+      sender_id: user.id,
       type: 'order_status_change',
       priority: 'normal',
       title: '订单进入售后',

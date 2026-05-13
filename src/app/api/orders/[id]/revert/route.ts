@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
+import { pushUrgentToWechat } from '@/lib/serverchan'
 
 // 阶段 → 上一个阶段的映射
 const REVERT_MAP: Record<string, string> = {
@@ -83,6 +84,7 @@ export async function POST(
       await adminSupabase.from('notifications').insert({
         organization_id: currentOrder.organization_id,
         user_id: currentOrder.assigned_designer,
+        sender_id: user.id,
         type: 'order_reverted',
         priority: 'normal',
         title: '订单已回退',
@@ -102,11 +104,21 @@ export async function POST(
       await adminSupabase.from('notifications').insert({
         organization_id: currentOrder.organization_id,
         user_id: currentOrder.assigned_designer,
+        sender_id: user.id,
         type: 'order_reverted',
         priority: 'urgent',
         title: '订单已回退，需重新接单',
         summary: `订单 ${currentOrder.order_no} 已回退至待接单，请重新接单`,
         related_order_id: orderId
+      })
+
+      // Push to WeChat
+      await pushUrgentToWechat(adminSupabase, currentOrder.assigned_designer, {
+        type: 'order_reverted',
+        title: '订单已回退，需重新接单',
+        summary: `订单 ${currentOrder.order_no} 已回退至待接单，请重新接单`,
+        orderNo: currentOrder.order_no,
+        customerName: currentOrder.customer_name,
       })
     }
   }
@@ -121,11 +133,21 @@ export async function POST(
       await adminSupabase.from('notifications').insert({
         organization_id: currentOrder.organization_id,
         user_id: currentOrder.assigned_designer,
+        sender_id: user.id,
         type: 'order_reverted',
         priority: 'urgent',
         title: '订单已回退，需重新提交方案',
         summary: `订单 ${currentOrder.order_no} 已回退至待下单，请重新提交方案`,
         related_order_id: orderId
+      })
+
+      // Push to WeChat
+      await pushUrgentToWechat(adminSupabase, currentOrder.assigned_designer, {
+        type: 'order_reverted',
+        title: '订单已回退，需重新提交方案',
+        summary: `订单 ${currentOrder.order_no} 已回退至待下单，请重新提交方案`,
+        orderNo: currentOrder.order_no,
+        customerName: currentOrder.customer_name,
       })
     }
   }
@@ -143,11 +165,21 @@ export async function POST(
       await adminSupabase.from('notifications').insert({
         organization_id: currentOrder.organization_id,
         user_id: currentOrder.assigned_designer,
+        sender_id: user.id,
         type: 'order_reverted',
         priority: 'urgent',
         title: '订单已回退至待打款',
         summary: `订单 ${currentOrder.order_no} 客户尚未打款，请等待打款后再操作`,
         related_order_id: orderId
+      })
+
+      // Push to WeChat
+      await pushUrgentToWechat(adminSupabase, currentOrder.assigned_designer, {
+        type: 'order_reverted',
+        title: '订单已回退至待打款',
+        summary: `订单 ${currentOrder.order_no} 客户尚未打款，请等待打款后再操作`,
+        orderNo: currentOrder.order_no,
+        customerName: currentOrder.customer_name,
       })
     }
   }
@@ -165,17 +197,28 @@ export async function POST(
       await adminSupabase.from('notifications').insert({
         organization_id: currentOrder.organization_id,
         user_id: currentOrder.assigned_designer,
+        sender_id: user.id,
         type: 'order_reverted',
         priority: 'urgent',
         title: '订单已回退至待出货',
         summary: `订单 ${currentOrder.order_no} 已回退，请重新填写出货时间`,
         related_order_id: orderId
       })
+
+      // Push to WeChat
+      await pushUrgentToWechat(adminSupabase, currentOrder.assigned_designer, {
+        type: 'order_reverted',
+        title: '订单已回退至待出货',
+        summary: `订单 ${currentOrder.order_no} 已回退，请重新填写出货时间`,
+        orderNo: currentOrder.order_no,
+        customerName: currentOrder.customer_name,
+      })
     }
     if (currentOrder.assigned_installer) {
       await adminSupabase.from('notifications').insert({
         organization_id: currentOrder.organization_id,
         user_id: currentOrder.assigned_installer,
+        sender_id: user.id,
         type: 'order_reverted',
         priority: 'normal',
         title: '订单已回退',
@@ -191,6 +234,7 @@ export async function POST(
       await adminSupabase.from('notifications').insert({
         organization_id: currentOrder.organization_id,
         user_id: currentOrder.assigned_installer,
+        sender_id: user.id,
         type: 'order_reverted',
         priority: 'normal',
         title: '订单已回退至安装中',
@@ -211,6 +255,7 @@ export async function POST(
       await adminSupabase.from('notifications').insert({
         organization_id: currentOrder.organization_id,
         user_id: currentOrder.assigned_installer,
+        sender_id: user.id,
         type: 'order_reverted',
         priority: 'normal',
         title: '订单已回退',

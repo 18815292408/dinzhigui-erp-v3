@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
+import { pushUrgentToWechat } from '@/lib/serverchan'
 
 export async function POST(
   request: Request,
@@ -52,11 +53,21 @@ export async function POST(
   await adminSupabase.from('notifications').insert({
     organization_id: order.organization_id,
     user_id: designer_id,
+    sender_id: user.id,
     type: 'new_order',
     priority: 'urgent',
     title: '新订单派发',
     summary: `客户 ${order.customer_name || '未知'} 的订单已派给您，请及时接单`,
     related_order_id: orderId
+  })
+
+  // Push to WeChat
+  await pushUrgentToWechat(adminSupabase, designer_id, {
+    type: 'new_order',
+    title: '新订单派发',
+    summary: `客户 ${order.customer_name || '未知'} 的订单已派给您，请及时接单`,
+    orderNo: order.order_no,
+    customerName: order.customer_name,
   })
 
   // 更新客户状态为有进行中订单

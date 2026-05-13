@@ -20,7 +20,11 @@ export async function GET() {
 
   let query = adminSupabase
     .from('notifications')
-    .select('*, order:orders(id, customer_name, order_no, status)')
+    .select(`
+      *,
+      order:orders(id, customer_name, order_no, status),
+      sender:users(id, display_name, role)
+    `)
     .eq('organization_id', user.organization_id)
 
   if (!['owner', 'manager'].includes(user.role)) {

@@ -72,6 +72,7 @@ export async function POST(
     await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: order.created_by,
+      sender_id: user.id,
       type: 'design_submitted',
       priority: 'normal',
       title: '方案已提交',

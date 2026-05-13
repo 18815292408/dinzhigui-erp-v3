@@ -66,6 +66,7 @@ export async function POST(
     await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: order.created_by,
+      sender_id: user.id,
       type: 'order_completed',
       priority: 'info',
       title: '订单已完成',

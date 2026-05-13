@@ -12,6 +12,15 @@ interface Notification {
   priority: string
   is_read: boolean
   order?: { id: string; customer_name: string; order_no: string }
+  sender?: { id: string; display_name: string; role: string }
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: '老板',
+  manager: '店长',
+  designer: '设计师',
+  sales: '导购',
+  installer: '安装工'
 }
 
 interface NotificationBellProps {
@@ -113,6 +122,11 @@ export function NotificationBell({ userRole }: NotificationBellProps) {
                     <div key={n.id} className="p-3 bg-gray-50 rounded-lg text-sm">
                       <div className="font-medium">{n.title}</div>
                       <div className="text-gray-500">{n.summary}</div>
+                      {n.sender && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          来自：{ROLE_LABELS[n.sender.role] || n.sender.role} {n.sender.display_name}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

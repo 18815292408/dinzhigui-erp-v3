@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { pushUrgentToWechat } from '@/lib/serverchan'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -43,11 +44,21 @@ export async function POST(request: Request) {
     await supabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: order.assigned_designer,
+      sender_id: user.id,
       type: 'supplement_request',
       priority: 'urgent',
       title: '补件申请',
       summary: `订单 ${order.order_no} 有补件需要处理：${description.slice(0, 50)}`,
       related_order_id: order_id
+    })
+
+    // Push to WeChat
+    const adminSupabase = await createAdminClient()
+    await pushUrgentToWechat(adminSupabase, order.assigned_designer, {
+      type: 'supplement_request',
+      title: '补件申请',
+      summary: `订单 ${order.order_no} 有补件需要处理：${description.slice(0, 50)}`,
+      orderNo: order.order_no,
     })
   }
 

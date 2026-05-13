@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
+import { pushUrgentToWechat } from '@/lib/serverchan'
 
 export async function POST(
   request: Request,
@@ -46,11 +47,21 @@ export async function POST(
       await adminSupabase.from('notifications').insert({
         organization_id: orderToCheck.organization_id,
         user_id: customer.created_by,
+        sender_id: user.id,
         type: 'signed_amount_required',
         priority: 'urgent',
         title: '签单金额待填写',
         summary: `订单 ${orderToCheck.order_no} 即将下单，请填写签单金额`,
         related_order_id: orderToCheck.id
+      })
+
+      // Push to WeChat
+      await pushUrgentToWechat(adminSupabase, customer.created_by, {
+        type: 'signed_amount_required',
+        title: '签单金额待填写',
+        summary: `订单 ${orderToCheck.order_no} 即将下单，请填写签单金额`,
+        orderNo: orderToCheck.order_no,
+        customerName: orderToCheck.customer_name,
       })
     }
 

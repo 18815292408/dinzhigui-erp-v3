@@ -11,6 +11,14 @@ const PRIORITY_CONFIG = {
   info: { label: '信息', color: 'border-purple-500 bg-purple-50' }
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  owner: '老板',
+  manager: '店长',
+  designer: '设计师',
+  sales: '导购',
+  installer: '安装工'
+}
+
 type NotificationPriority = keyof typeof PRIORITY_CONFIG
 
 export function NotificationList() {
@@ -24,7 +32,11 @@ export function NotificationList() {
   const fetchNotifications = async () => {
     const { data } = await supabase
       .from('notifications')
-      .select('*, order:orders(id, customer_name, order_no)')
+      .select(`
+        *,
+        order:orders(id, customer_name, order_no),
+        sender:users(id, display_name, role)
+      `)
       .order('priority')
       .order('created_at', { ascending: false })
     setNotifications(data || [])
@@ -76,6 +88,11 @@ export function NotificationList() {
                     <span className="font-medium">{notif.title}</span>
                   </div>
                   <p className="text-sm text-gray-600 mb-1">{notif.summary}</p>
+                  {notif.sender && (
+                    <p className="text-xs text-gray-500 mb-1">
+                      来自：{ROLE_LABELS[notif.sender.role] || notif.sender.role} {notif.sender.display_name}
+                    </p>
+                  )}
                   {notif.order && (
                     <p className="text-xs text-gray-400">
                       订单: {notif.order.order_no} · {notif.order.customer_name}

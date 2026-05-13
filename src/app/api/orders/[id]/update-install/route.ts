@@ -85,6 +85,7 @@ export async function POST(
     await adminSupabase.from('notifications').insert({
       organization_id: order.organization_id,
       user_id: order.assigned_designer,
+      sender_id: user.id,
       type: 'supplement_request',
       priority: 'urgent',
       title: '补件申请',
