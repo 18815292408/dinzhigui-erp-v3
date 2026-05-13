@@ -113,8 +113,10 @@ export default async function CompletedOrdersPage() {
   const sessionCookie = cookieStore.get('session')
   const user = sessionCookie ? parseSessionUser(sessionCookie.value) : null
 
-  const completedOrders = await getCompletedOrders()
-  const cancelledOrders = await getCancelledOrders()
+  const [completedOrders, cancelledOrders] = await Promise.all([
+    getCompletedOrders(),
+    getCancelledOrders(),
+  ])
 
   return (
     <div className="space-y-4 lg:space-y-6">

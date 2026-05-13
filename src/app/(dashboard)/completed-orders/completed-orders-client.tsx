@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { CompletedOrderList } from '@/components/orders/completed-order-list'
+import { OrderExportToolbar } from '@/components/orders/order-export-toolbar'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 
@@ -18,6 +19,10 @@ export function CompletedOrdersClient({ completedOrders, cancelledOrders, userRo
   const searchParams = useSearchParams()
 
   const currentTab = searchParams.get('tab') === 'cancelled' ? 'cancelled' : 'completed'
+  const currentOrders = currentTab === 'completed' ? completedOrders : cancelledOrders
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [isExporting, setIsExporting] = useState(false)
 
   const handleTabChange = useCallback((newTab: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -27,7 +32,52 @@ export function CompletedOrdersClient({ completedOrders, cancelledOrders, userRo
       params.delete('tab')
     }
     router.replace(`${pathname}?${params.toString()}`)
+    setSelectedIds([])
   }, [router, pathname, searchParams])
+
+  const handleSelectChange = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((prev) =>
+      checked ? [...prev, id] : prev.filter((sid) => sid !== id)
+    )
+  }, [])
+
+  const handleSelectAll = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? currentOrders.map((o) => o.id) : [])
+  }, [currentOrders])
+
+  const handleExport = useCallback(async () => {
+    if (selectedIds.length === 0 || isExporting) return
+    setIsExporting(true)
+
+    try {
+      const res = await fetch('/api/orders/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: selectedIds }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || '导出失败')
+      }
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const disposition = res.headers.get('content-disposition')
+      const match = disposition?.match(/filename="(.+)"/)
+      a.download = match ? match[1] : '已完成订单导出.zip'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err: any) {
+      alert(err.message || '导出失败，请稍后重试')
+    } finally {
+      setIsExporting(false)
+    }
+  }, [selectedIds, isExporting])
 
   return (
     <>
@@ -58,11 +108,20 @@ export function CompletedOrdersClient({ completedOrders, cancelledOrders, userRo
         </TabsList>
       </Tabs>
 
-      <div className="mt-4">
+      <OrderExportToolbar
+        selectedCount={selectedIds.length}
+        totalCount={currentOrders.length}
+        allSelected={currentOrders.length > 0 && selectedIds.length === currentOrders.length}
+        onSelectAll={handleSelectAll}
+        onExport={handleExport}
+        isExporting={isExporting}
+      />
+
+      <div className="mt-2">
         {currentTab === 'completed' ? (
-          <CompletedOrderList orders={completedOrders} userRole={userRole} status="completed" />
+          <CompletedOrderList orders={completedOrders} userRole={userRole} status="completed" selectedIds={selectedIds} onSelectChange={handleSelectChange} />
         ) : (
-          <CompletedOrderList orders={cancelledOrders} userRole={userRole} status="cancelled" />
+          <CompletedOrderList orders={cancelledOrders} userRole={userRole} status="cancelled" selectedIds={selectedIds} onSelectChange={handleSelectChange} />
         )}
       </div>
     </>

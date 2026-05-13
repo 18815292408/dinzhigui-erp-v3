@@ -8,7 +8,7 @@ import { buildCompletedOrderCardView } from '@/lib/order-workflow'
 import { Trash2, MapPin } from 'lucide-react'
 import Link from 'next/link'
 
-export function CompletedOrderList({ orders, userRole, status = 'completed' }: { orders: any[]; userRole: string; status?: 'completed' | 'cancelled' }) {
+export function CompletedOrderList({ orders, userRole, status = 'completed', selectedIds = [], onSelectChange }: { orders: any[]; userRole: string; status?: 'completed' | 'cancelled'; selectedIds?: string[]; onSelectChange?: (id: string, checked: boolean) => void }) {
   const router = useRouter()
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -70,16 +70,33 @@ export function CompletedOrderList({ orders, userRole, status = 'completed' }: {
 
           const isCancelled = card.status === 'cancelled'
 
+          const isSelected = selectedIds.includes(card.id)
+
           return (
             <Card key={card.id} className="overflow-hidden hover:shadow-md transition-shadow">
               <CardContent className="p-4">
-                <Link 
-                  href={`/completed-orders/${card.id}`} 
-                  className="block no-underline text-inherit"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-start gap-3">
+                  {onSelectChange && (
+                    <div className="pt-1">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation()
+                          onSelectChange(card.id, e.target.checked)
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  )}
+                  <Link
+                    href={`/completed-orders/${card.id}`}
+                    className="flex-1 block no-underline text-inherit"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-medium text-base truncate">
                           {card.customerName || '未知客户'}
                         </h3>
@@ -135,6 +152,7 @@ export function CompletedOrderList({ orders, userRole, status = 'completed' }: {
                     </div>
                   </div>
                 </Link>
+                </div>
 
                 {canDelete && (
                   <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">

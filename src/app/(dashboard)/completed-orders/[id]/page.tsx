@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BackButton } from '@/components/ui/back-button'
+import { OrderExportButton } from '@/components/orders/order-export-button'
 import { buildCompletedOrderCardView } from '@/lib/order-workflow'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseSessionUser } from '@/lib/types'
@@ -58,12 +59,17 @@ export default async function CompletedOrderDetailPage({ params }: { params: { i
 
   return (
     <div className="space-y-6">
-      <div>
-        <BackButton href="/completed-orders" label="返回已完成订单" />
-        <h1 className="text-2xl font-semibold mt-2">已完成订单详情</h1>
-        <p className="text-muted-foreground">
-          {card.orderNo || '无订单号'} · {card.customerName || '未知客户'}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <BackButton href="/completed-orders" label="返回已完成订单" />
+          <h1 className="text-2xl font-semibold mt-2">已完成订单详情</h1>
+          <p className="text-muted-foreground">
+            {card.orderNo || '无订单号'} · {card.customerName || '未知客户'}
+          </p>
+        </div>
+        <div className="mt-1 shrink-0">
+          <OrderExportButton orderId={params.id} variant="outline" />
+        </div>
       </div>
 
       <Card>

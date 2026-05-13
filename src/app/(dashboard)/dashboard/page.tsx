@@ -25,7 +25,6 @@ async function getDashboardData(timeRange?: string) {
   const adminSupabase = await createAdminClient()
   const orgId = user.organization_id
 
-  // 查询订单（按角色过滤）
   let orderQuery = adminSupabase
     .from('orders')
     .select(`
@@ -52,34 +51,44 @@ async function getDashboardData(timeRange?: string) {
     orderQuery = orderQuery.eq('assigned_installer', user.id)
   }
 
-  const { data: orders } = await orderQuery
+  let customerQuery = adminSupabase
+    .from('customers')
+    .select('id, name, phone, created_at')
+    .eq('organization_id', orgId)
+
+  if (user.role === 'sales') {
+    customerQuery = customerQuery.eq('created_by', user.id)
+  }
+
+  const [{ data: orders }, { data: allCustomers }] = await Promise.all([
+    orderQuery,
+    customerQuery,
+  ])
 
   const safeOrders = orders || []
 
-  // 收集所有用户 ID
   const userIds = new Set<string>()
   for (const order of safeOrders) {
     if (order.created_by) userIds.add(order.created_by)
     if (order.assigned_designer) userIds.add(order.assigned_designer)
     if (order.assigned_installer) userIds.add(order.assigned_installer)
   }
-
-  // 查询用户
-  const { data: users } = userIds.size > 0
-    ? await adminSupabase
-        .from('users')
-        .select('id, display_name, email, phone')
-        .in('id', Array.from(userIds))
-    : { data: [] }
-
-  // 构建 order_id -> customer_id 映射（优先通过 designs 表关联）
   const orderIds = safeOrders.map(o => o.id)
-  const { data: designs } = orderIds.length > 0
-    ? await adminSupabase
-        .from('designs')
-        .select('order_id, customer_id')
-        .in('order_id', orderIds)
-    : { data: [] }
+
+  const [{ data: users }, { data: designs }] = await Promise.all([
+    userIds.size > 0
+      ? adminSupabase
+          .from('users')
+          .select('id, display_name, email, phone')
+          .in('id', Array.from(userIds))
+      : Promise.resolve({ data: [] }),
+    orderIds.length > 0
+      ? adminSupabase
+          .from('designs')
+          .select('order_id, customer_id')
+          .in('order_id', orderIds)
+      : Promise.resolve({ data: [] }),
+  ])
 
   const customerMap: Record<string, string> = {}
   for (const d of (designs || [])) {
@@ -87,9 +96,15 @@ async function getDashboardData(timeRange?: string) {
       customerMap[d.order_id] = d.customer_id
     }
   }
+
   const missingOrderIds = orderIds.filter(id => !customerMap[id])
   if (missingOrderIds.length > 0) {
-    const missingNames = Array.from(new Set(safeOrders.filter(o => missingOrderIds.includes(o.id)).map(o => o.customer_name).filter(Boolean)))
+    const missingNames = Array.from(new Set(
+      safeOrders
+        .filter(o => missingOrderIds.includes(o.id))
+        .map(o => o.customer_name)
+        .filter(Boolean)
+    ))
     if (missingNames.length > 0) {
       const { data: customers } = await adminSupabase
         .from('customers')
@@ -109,18 +124,6 @@ async function getDashboardData(timeRange?: string) {
       }
     }
   }
-
-  // 统计待创建订单的客户数（按角色过滤）
-  let customerQuery = adminSupabase
-    .from('customers')
-    .select('id, name, phone, created_at')
-    .eq('organization_id', orgId)
-
-  if (user.role === 'sales') {
-    customerQuery = customerQuery.eq('created_by', user.id)
-  }
-
-  const { data: allCustomers } = await customerQuery
 
   let creationCustomerCount = 0
   const creationCustomers: { id: string; name: string; phone: string; created_at: string }[] = []
