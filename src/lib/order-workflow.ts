@@ -1,4 +1,5 @@
 export const COMPLETED_ORDER_STATUS = 'completed'
+export const CANCELLED_ORDER_STATUS = 'cancelled'
 export const ACTIVE_INSTALLATION_STATUSES = ['pending', 'in_progress'] as const
 export const COMPLETED_INSTALLATION_STATUSES = ['completed', 'cancelled'] as const
 export const ACTIVE_ORDER_STATUSES = [
@@ -12,6 +13,7 @@ export const ACTIVE_ORDER_STATUSES = [
   'in_install',
   'in_after_sales',
 ] as const
+export const TERMINAL_ORDER_STATUSES = ['completed', 'cancelled'] as const
 
 type WorkflowOrder = {
   customer_id?: string | null
@@ -27,6 +29,10 @@ type WorkflowDesign = {
 
 export function isActiveOrderStatus(status?: string | null) {
   return Boolean(status && ACTIVE_ORDER_STATUSES.includes(status as any))
+}
+
+export function isTerminalOrderStatus(status?: string | null) {
+  return Boolean(status && TERMINAL_ORDER_STATUSES.includes(status as any))
 }
 
 function normalizeText(value?: string | null) {
@@ -50,54 +56,61 @@ export function orderBelongsToCustomer(customer: {
 
   const customerPhone = normalizeText(customer.phone)
   const orderCustomerPhone = normalizeText(order.customer_phone)
-  return Boolean(customerPhone && orderCustomerPhone && customerPhone === orderCustomerPhone)
+  if (customerPhone && orderCustomerPhone && customerPhone === orderCustomerPhone) {
+    return true
+  }
+
+  return false
 }
 
-export function shouldShowCustomerInFollowup(input: {
-  orders?: WorkflowOrder[] | null
-  designs?: WorkflowDesign[] | null
+export function shouldShowCustomerInCreateList({
+  orders,
+  designs,
+}: {
+  orders: any[]
+  designs: any[]
 }) {
-  const hasActiveOrder = (input.orders || []).some((order) =>
-    isActiveOrderStatus(order.status)
+  const activeOrders = orders.filter((o) => isActiveOrderStatus(o.status))
+  const activeDesigns = designs.filter(
+    (d) => d.status === 'draft' || (d.status === 'submitted' && d.orderStatus === 'pending_design')
   )
-  const hasActiveDesign = (input.designs || []).some((design) =>
-    ['draft', 'submitted'].includes(String(design.status || '')) &&
-    isActiveOrderStatus(design.orderStatus)
+
+  return activeOrders.length === 0 && activeDesigns.length === 0
+}
+
+export function shouldShowCustomerInFollowup({
+  orders,
+  designs,
+}: {
+  orders: any[]
+  designs: any[]
+}) {
+  const activeOrders = orders.filter((o) => isActiveOrderStatus(o.status))
+  const activeDesigns = designs.filter(
+    (d) => d.status === 'draft' || (d.status === 'submitted' && d.orderStatus === 'pending_design')
   )
 
-  return hasActiveOrder || hasActiveDesign
+  return activeOrders.length > 0 || activeDesigns.length > 0
 }
 
-export function shouldShowCustomerInCreateList(input: {
-  orders?: WorkflowOrder[] | null
-  designs?: WorkflowDesign[] | null
+export function shouldShowInstallationInActiveList({
+  status,
+  order,
+  customerOrders,
+}: {
+  status?: string
+  order?: any
+  customerOrders?: any[]
 }) {
-  return (input.orders || []).length === 0 && (input.designs || []).length === 0
-}
-
-export function shouldShowInstallationInActiveList(input: {
-  status?: string | null
-  order?: WorkflowOrder | null
-  customerOrders?: WorkflowOrder[] | null
-}) {
-  const isActiveInstall = ACTIVE_INSTALLATION_STATUSES.includes(input.status as any)
-  const isAfterSales = input.status === 'completed' && input.order?.status === 'in_after_sales'
-  const isCompletedButOrderActive = input.status === 'completed' && isActiveOrderStatus(input.order?.status || '')
-
-  if (!isActiveInstall && !isAfterSales && !isCompletedButOrderActive) {
-    return false
+  if (status === 'pending' || status === 'in_progress') {
+    return true
   }
 
-  if (input.order) {
-    return isActiveOrderStatus(input.order.status) || input.order.status === 'in_after_sales'
+  if (status === 'completed' && order?.status === 'in_after_sales') {
+    return true
   }
 
-  const customerOrders = input.customerOrders || []
-  if (customerOrders.some((order) => order.status === COMPLETED_ORDER_STATUS)) {
-    return false
-  }
-
-  return customerOrders.some((order) => isActiveOrderStatus(order.status))
+  return false
 }
 
 export function buildInstallationCardView(input: {
@@ -112,6 +125,7 @@ export function buildInstallationCardView(input: {
   return {
     customerName: customer.name || order.customer_name || null,
     customerPhone: customer.phone || order.customer_phone || null,
+    customerAddress: customer.address || order.customer_address || null,
     houseType: customer.house_type || order.house_type || null,
     orderNo: order.order_no || null,
     designTitle: design.title || null,
@@ -134,11 +148,15 @@ export function buildCompletedOrderCardView(input: {
     orderNo: order.order_no || null,
     customerName: order.customer_name || null,
     customerPhone: order.customer_phone || null,
+    customerAddress: order.customer_address || null,
     houseType: order.house_type || null,
     designTitle: design.title || null,
     roomCount: design.room_count || null,
     amount: order.final_order_amount ?? order.signed_amount ?? design.final_price ?? design.price ?? null,
     completedAt: order.completed_at || installation.completed_at || null,
+    cancelledAt: order.cancelled_at || null,
+    cancelledBy: order.cancelled_by || null,
+    status: order.status || null,
     installationFeedback: installation.feedback || null,
   }
 }

@@ -44,7 +44,9 @@ export async function GET(request: Request) {
         payment_confirmed_at,
         factory_records,
         status,
-        completed_at
+        completed_at,
+        cancelled_at,
+        cancelled_by
       `)
       .eq('organization_id', user.organization_id)
 

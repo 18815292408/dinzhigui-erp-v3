@@ -1,10 +1,11 @@
 'use client'
 
-import { Card } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { MapPin } from 'lucide-react'
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   draft: { label: '设计中', color: 'bg-gray-100 text-gray-800' },
@@ -65,27 +66,38 @@ export function DesignList({ designs }: { designs: any[] }) {
         const config = orderStatusConfig[orderStatus] || { label: orderStatus || '未知', color: 'bg-gray-100 text-gray-800' }
 
         return (
-          <Card key={design.id} className="p-4 hover:bg-gray-50 transition-colors">
-            <div className="flex items-center justify-between">
-              <Link href={`/designs/${design.id}`} className="flex-1">
-                <h3 className="font-medium">{design.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  订单号：{order?.order_no || '无'} · 客户：{order?.customer_name || '未知'}
-                  {design.total_area ? ` · ${design.total_area}㎡` : ''}
-                </p>
-              </Link>
-              <div className="flex items-center gap-2">
-                <Badge className={config.color}>
-                  {config.label}
-                </Badge>
-                <button
-                  onClick={() => handleDeleteDesign(design.id)}
-                  className="text-sm text-red-600 hover:text-red-700"
-                >
-                  删除
-                </button>
+          <Card key={design.id} className="overflow-hidden hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <Link href={`/designs/${design.id}`} className="flex-1 min-w-0">
+                  <div className="space-y-1">
+                    <h3 className="font-medium text-base">{design.title}</h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      <span>订单号：{order?.order_no || '无'}</span>
+                      <span>客户：{order?.customer_name || '未知'}</span>
+                      {design.total_area ? <span>{design.total_area}㎡</span> : null}
+                    </div>
+                    {order?.customer_address && (
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{order.customer_address}</span>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge className={config.color}>
+                    {config.label}
+                  </Badge>
+                  <button
+                    onClick={() => handleDeleteDesign(design.id)}
+                    className="text-sm text-red-600 hover:text-red-700"
+                  >
+                    删除
+                  </button>
+                </div>
               </div>
-            </div>
+            </CardContent>
           </Card>
         )
       })}

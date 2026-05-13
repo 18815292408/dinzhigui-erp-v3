@@ -51,7 +51,7 @@ async function getDesignTasks() {
     if (orderIds.length) {
       const { data: orders } = await adminSupabase
         .from('orders')
-        .select('id, order_no, status, customer_name, signed_amount, assigned_designer, design_due_date')
+        .select('id, order_no, status, customer_name, customer_phone, customer_address, assigned_designer, design_due_date')
         .in('id', orderIds)
       const ordersMap: any = {}
       orders?.forEach((o: any) => { ordersMap[o.id] = o })

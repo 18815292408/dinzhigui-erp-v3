@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { FollowUpForm } from '@/components/customers/follow-up-form'
 import { OrderAmountEditor } from '@/components/customers/order-amount-editor'
+import { CustomerBasicInfoEditor } from '@/components/customers/customer-basic-info-editor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TransferDesignButton } from '@/components/customers/transfer-design-button'
 import { BackButton } from '@/components/ui/back-button'
@@ -24,6 +25,7 @@ const STATUS_LABELS: Record<string, string> = {
   in_install: '安装中',
   in_after_sales: '售后中',
   completed: '已完结',
+  cancelled: '已退订',
 }
 
 interface FollowUp {
@@ -71,14 +73,20 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [isEditingBasicInfo, setIsEditingBasicInfo] = useState(false)
+  const [basicInfoUpdateError, setBasicInfoUpdateError] = useState<string | null>(null)
+  const [currentCustomer, setCurrentCustomer] = useState(customer)
 
-  const followUps = (typeof customer.follow_ups === 'string'
-    ? JSON.parse(customer.follow_ups || '[]')
-    : (customer.follow_ups || [])) as FollowUp[]
+  const followUps = (typeof currentCustomer.follow_ups === 'string'
+    ? JSON.parse(currentCustomer.follow_ups || '[]')
+    : (currentCustomer.follow_ups || [])) as FollowUp[]
 
-  const order = customer.orders?.[0]
+  const order = currentCustomer.orders?.[0]
   const design = order?.designs?.[0]
   const customerFactoryViewState = getFactoryShipmentViewState(
     'customer',
@@ -86,8 +94,60 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
     order?.factory_records
   )
 
+  const handleUpdateBasicInfo = async (updatedCustomer: { id: string; name: string; phone: string | null; house_type: string | null; address: string | null; estimated_price: number | null; requirements: string | null }) => {
+    setBasicInfoUpdateError(null)
+    try {
+      const res = await fetch(`/api/customers/${currentCustomer.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: updatedCustomer.name,
+          phone: updatedCustomer.phone,
+          house_type: updatedCustomer.house_type,
+          address: updatedCustomer.address,
+          estimated_price: updatedCustomer.estimated_price,
+          requirements: updatedCustomer.requirements,
+        }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        throw new Error(result.error || '更新客户信息失败')
+      }
+
+      // 更新本地状态
+      setCurrentCustomer(prev => ({
+        ...prev,
+        name: result.data.name,
+        phone: result.data.phone,
+        house_type: result.data.house_type,
+        address: result.data.address,
+        estimated_price: result.data.estimated_price,
+        requirements: result.data.requirements,
+      }))
+
+      // 同步更新订单中的客户姓名显示
+      if (result.data.name !== currentCustomer.name && order) {
+        setCurrentCustomer(prev => ({
+          ...prev,
+          orders: prev.orders?.map((o: any) =>
+            o.id === order.id ? { ...o, customer_name: result.data.name } : o
+          ) || [],
+        }))
+      }
+
+      setIsEditingBasicInfo(false)
+      router.refresh()
+    } catch (err: any) {
+      setBasicInfoUpdateError(err.message)
+      throw err
+    }
+  }
+
   const handleDeleteOrder = async () => {
-    const orderId = customer.orders?.[0]?.id
+    const orderId = currentCustomer.orders?.[0]?.id
     if (!orderId) return
 
     setDeleting(true)
@@ -151,7 +211,7 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
         const err = await res.json()
         throw new Error(err.error || '分配安装师傅失败')
       }
-      router.push(`/customers/${customer.id}`)
+      router.push(`/customers/${currentCustomer.id}`)
       router.refresh()
     } catch (err: any) {
       setActionError(err.message)
@@ -177,7 +237,7 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
         const err = await res.json()
         throw new Error(err.error || '设置出货失败')
       }
-      router.push(`/customers/${customer.id}`)
+      router.push(`/customers/${currentCustomer.id}`)
       router.refresh()
     } catch (err: any) {
       setActionError(err.message)
@@ -266,7 +326,7 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
         throw new Error(data.error || '回退失败')
       }
       // 强制刷新页面确保状态更新
-      router.push(`/customers/${customer.id}`)
+      router.push(`/customers/${currentCustomer.id}`)
       router.refresh()
     } catch (err: any) {
       setActionError(err.message)
@@ -275,19 +335,40 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
     }
   }
 
+  const handleCancelOrder = async () => {
+    if (!order?.id) return
+    setCancelling(true)
+    setCancelError(null)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || '退订失败')
+      }
+      router.push(`/customers/${currentCustomer.id}`)
+      router.refresh()
+    } catch (err: any) {
+      setCancelError(err.message)
+      setCancelling(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <BackButton href="/customers" label="返回客户列表" />
-          <h1 className="text-2xl font-semibold mt-2">{customer.name}</h1>
+          <h1 className="text-2xl font-semibold mt-2">{currentCustomer.name}</h1>
           <p className="text-muted-foreground">
-            电话：{customer.phone || '未填写'}
+            电话：{currentCustomer.phone || '未填写'}
           </p>
         </div>
         <div className="flex items-center gap-4">
           {canEdit && user && !order && (
-            <TransferDesignButton customerId={customer.id} customerName={customer.name} organizationId={user.organization_id} />
+            <TransferDesignButton customerId={currentCustomer.id} customerName={currentCustomer.name} organizationId={user.organization_id} />
           )}
         </div>
       </div>
@@ -299,28 +380,61 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
 
       {/* 客户信息卡片 */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>基本信息</CardTitle>
+          {canEdit && !isEditingBasicInfo && (
+            <button
+              onClick={() => setIsEditingBasicInfo(true)}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
+              编辑
+            </button>
+          )}
         </CardHeader>
         <CardContent className="space-y-2">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">房型：</span>
-              {customer.house_type || '未填写'}
+          {basicInfoUpdateError && (
+            <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm mb-4">
+              {basicInfoUpdateError}
             </div>
-            <div>
-              <span className="text-muted-foreground">地址：</span>
-              {customer.address || '未填写'}
+          )}
+
+          {isEditingBasicInfo ? (
+            <CustomerBasicInfoEditor
+              customer={{
+                id: currentCustomer.id,
+                name: currentCustomer.name,
+                phone: currentCustomer.phone,
+                house_type: currentCustomer.house_type,
+                address: currentCustomer.address,
+                estimated_price: currentCustomer.estimated_price,
+                requirements: currentCustomer.requirements,
+              }}
+              onSave={handleUpdateBasicInfo}
+              onCancel={() => {
+                setIsEditingBasicInfo(false)
+                setBasicInfoUpdateError(null)
+              }}
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">房型：</span>
+                {currentCustomer.house_type || '未填写'}
+              </div>
+              <div>
+                <span className="text-muted-foreground">地址：</span>
+                {currentCustomer.address || '未填写'}
+              </div>
+              <div>
+                <span className="text-muted-foreground">预估价格：</span>
+                {currentCustomer.estimated_price ? `¥${currentCustomer.estimated_price.toLocaleString()}` : '未填写'}
+              </div>
+              <div className="col-span-2">
+                <span className="text-muted-foreground">需求：</span>
+                {currentCustomer.requirements || '未填写'}
+              </div>
             </div>
-            <div>
-              <span className="text-muted-foreground">预估价格：</span>
-              {customer.estimated_price ? `¥${customer.estimated_price.toLocaleString()}` : '未填写'}
-            </div>
-            <div className="col-span-2">
-              <span className="text-muted-foreground">需求：</span>
-              {customer.requirements || '未填写'}
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -746,15 +860,69 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
             <p className="text-sm text-muted-foreground">暂无跟进记录</p>
           )}
           {canEdit ? (
-            <FollowUpForm customerId={customer.id} />
+            <FollowUpForm customerId={currentCustomer.id} />
           ) : (
             <p className="text-sm text-muted-foreground">无编辑权限</p>
           )}
         </CardContent>
       </Card>
 
+      {/* 退订订单按钮 */}
+      {order && order.status !== 'completed' && order.status !== 'cancelled' && user && (
+        (user.role === 'owner' || user.role === 'manager' || order.created_by === user.id || order.assigned_designer === user.id)
+      ) && (
+        <div className="pt-4 border-t border-orange-100">
+          <button
+            onClick={() => setShowCancelConfirm(true)}
+            disabled={order.installation_status === 'installed'}
+            className="px-4 py-2 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-100 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title={order.installation_status === 'installed' ? '订单已安装完成，无法退订' : ''}
+          >
+            退订订单
+          </button>
+          {order.installation_status === 'installed' && (
+            <p className="text-xs text-gray-400 mt-1">订单已安装完成，无法退订</p>
+          )}
+        </div>
+      )}
+
+      {/* 退订订单对话框 */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">确认退订订单</h3>
+            <p className="text-gray-600 mb-6">
+              确定要退订该订单吗？退订后订单将进入已退订列表，无法恢复。
+            </p>
+            {cancelError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
+                {cancelError}
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowCancelConfirm(false)
+                  setCancelError(null)
+                }}
+                className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCancelOrder}
+                disabled={cancelling}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+              >
+                {cancelling ? '退订中...' : '确认退订'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 删除订单按钮 */}
-      {order && order.status !== 'completed' && (
+      {order && order.status !== 'completed' && order.status !== 'cancelled' && (
         <div className="pt-4 border-t border-red-100">
           <button
             onClick={() => setShowDeleteConfirm(true)}

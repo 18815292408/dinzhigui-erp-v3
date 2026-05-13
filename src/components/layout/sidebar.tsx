@@ -16,6 +16,7 @@ import {
   CheckCircle,
   HelpCircle,
   X,
+  MessageSquare,
 } from 'lucide-react'
 import { useEffect } from 'react'
 
@@ -37,6 +38,7 @@ const navigation: NavItem[] = [
   { name: '已完成订单', href: '/completed-orders', icon: CheckCircle, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'workflow' },
   { name: '工厂管理', href: '/factories', icon: Factory, roles: ['owner', 'manager'], section: 'settings' },
   { name: '消息中心', href: '/notifications', icon: Bell, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'settings' },
+  { name: '通知设置', href: '/settings/notifications', icon: MessageSquare, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'settings' },
   { name: '账号管理', href: '/settings/users', icon: Settings, roles: ['owner', 'manager'], section: 'settings', requiresManageUsers: true },
   { name: '管理员面板', href: '/settings/admin', icon: Shield, roles: ['owner'], section: 'settings', adminOnly: true },
   { name: '使用说明', href: '/help', icon: HelpCircle, roles: ['owner', 'manager', 'designer', 'sales', 'installer'], section: 'settings' },

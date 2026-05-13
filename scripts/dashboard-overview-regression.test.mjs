@@ -54,12 +54,15 @@ const overview = buildDashboardOverview({
 assert.equal(
   JSON.stringify(overview.cards.map((card) => [card.key, card.count])),
   JSON.stringify([
+    ['order_creation', 0],
     ['pending_dispatch', 1],
     ['design', 2],
     ['pending_order', 1],
     ['pending_payment', 1],
     ['install', 2],
+    ['after_sales', 0],
     ['completed_this_month', 1],
+    ['cancelled_this_month', 0],
   ])
 )
 

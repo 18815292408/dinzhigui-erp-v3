@@ -1,11 +1,12 @@
 'use client'
 
-import { Card } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { buildInstallationCardView } from '@/lib/order-workflow'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { MapPin } from 'lucide-react'
 
 const statusConfig = {
   pending: { label: '待安装', color: 'bg-yellow-100 text-yellow-800' },
@@ -50,7 +51,7 @@ export function InstallationList({ installations }: { installations: any[] }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4">
       {deleteError && (
         <div className="text-red-600 text-sm mb-2">{deleteError}</div>
       )}
@@ -62,37 +63,47 @@ export function InstallationList({ installations }: { installations: any[] }) {
         })
 
         return (
-          <Card key={inst.id} className="p-4 hover:bg-gray-50 transition-colors">
-            <div className="flex items-center justify-between">
-              <Link href={`/installations/${inst.id}`} className="flex-1">
-                <h3 className="font-medium">{card.customerName || '未知客户'}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {card.orderNo && `订单号：${card.orderNo} · `}
-                  方案：{card.designTitle || '无'}
-                  {card.roomCount && ` · ${card.roomCount}室`}
-                  {card.houseType && ` (${card.houseType})`}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  联系方式：{card.customerPhone || '无'}
-                </p>
-              </Link>
-              <div className="flex items-center gap-2">
-                <Badge className={
-                  inst.orders?.status === 'in_after_sales'
-                    ? 'bg-purple-100 text-purple-800'
-                    : (statusConfig[inst.status as keyof typeof statusConfig]?.color || 'bg-gray-100 text-gray-800')
-                }>
-                  {inst.orders?.status === 'in_after_sales' ? '售后中' : (statusConfig[inst.status as keyof typeof statusConfig]?.label || inst.status)}
-                </Badge>
-                <button
-                  onClick={() => handleDeleteInstallation(inst.id)}
-                  disabled={deletingId === inst.id}
-                  className="text-sm disabled:opacity-50 text-red-600 hover:text-red-700"
-                >
-                  {deletingId === inst.id ? '删除中...' : '删除'}
-                </button>
+          <Card key={inst.id} className="overflow-hidden hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <Link href={`/installations/${inst.id}`} className="flex-1 min-w-0">
+                  <div className="space-y-1">
+                    <h3 className="font-medium text-base">{card.customerName || '未知客户'}</h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      {card.orderNo && <span>订单号：{card.orderNo}</span>}
+                      <span>方案：{card.designTitle || '无'}</span>
+                      {card.roomCount && <span>{card.roomCount}室</span>}
+                      {card.houseType && <span>({card.houseType})</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      <span>联系方式：{card.customerPhone || '无'}</span>
+                    </div>
+                    {card.customerAddress && (
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{card.customerAddress}</span>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge className={
+                    inst.orders?.status === 'in_after_sales'
+                      ? 'bg-purple-100 text-purple-800'
+                      : (statusConfig[inst.status as keyof typeof statusConfig]?.color || 'bg-gray-100 text-gray-800')
+                  }>
+                    {inst.orders?.status === 'in_after_sales' ? '售后中' : (statusConfig[inst.status as keyof typeof statusConfig]?.label || inst.status)}
+                  </Badge>
+                  <button
+                    onClick={() => handleDeleteInstallation(inst.id)}
+                    disabled={deletingId === inst.id}
+                    className="text-sm disabled:opacity-50 text-red-600 hover:text-red-700"
+                  >
+                    {deletingId === inst.id ? '删除中...' : '删除'}
+                  </button>
+                </div>
               </div>
-            </div>
+            </CardContent>
           </Card>
         )
       })}

@@ -12,6 +12,7 @@ const STAGE_LABEL: Record<string, string> = {
   pending_shipment: '待出货',
   in_install: '安装中',
   completed: '已完成',
+  cancelled: '已退订',
 }
 
 const STAGE_BOTTLENECK_DAYS: Record<string, number> = {
@@ -231,13 +232,14 @@ export async function POST(request: NextRequest) {
     })
 
   // 4. 统计摘要（预计算，帮助 AI 更准确）
-  const activeOrders = orderAnalysisData.filter(o => o.status !== 'completed')
+  const activeOrders = orderAnalysisData.filter(o => o.status !== 'completed' && o.status !== 'cancelled')
   const completedThisWeek = orderAnalysisData.filter(o => {
     if (o.status !== 'completed' || !o.completed_at) return false
     const d = new Date(o.completed_at)
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     return d >= weekAgo
   })
+  const cancelledOrders = orderAnalysisData.filter(o => o.status === 'cancelled')
   const createdThisWeek = orderAnalysisData.filter(o => o.days_since_created <= 7)
   const bottleneckOrders = orderAnalysisData.filter(o => o.is_bottleneck)
   const totalPendingAmount = activeOrders.reduce((sum, o) => sum + o.amount, 0)
@@ -260,7 +262,8 @@ export async function POST(request: NextRequest) {
   const summary = {
     total_orders: safeOrders.length,
     active_orders: activeOrders.length,
-    completed_orders: safeOrders.length - activeOrders.length,
+    completed_orders: safeOrders.length - activeOrders.length - cancelledOrders.length,
+    cancelled_orders: cancelledOrders.length,
     completed_this_week: completedThisWeek.length,
     created_this_week: createdThisWeek.length,
     created_this_month: createdThisMonth.length,

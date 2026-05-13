@@ -21,6 +21,8 @@ type OrderLike = {
   created_at: string | null
   updated_at: string | null
   completed_at?: string | null
+  cancelled_at?: string | null
+  cancelled_by?: string | null
   signed_amount: number | string | null
   final_order_amount: number | string | null
   payment_status: string | null
@@ -82,6 +84,7 @@ export function buildMonthlyStatistics({ year, month, orders, users }: MonthlySt
   const salesById: Record<string, any> = {}
   const designerReceivedById: Record<string, any> = {}
   const designerById: Record<string, any> = {}
+  const cancelledById: Record<string, any> = {}
 
   for (const order of orders) {
     if (isInMonth(order.created_at, year, month)) {
@@ -182,11 +185,35 @@ export function buildMonthlyStatistics({ year, month, orders, users }: MonthlySt
         })),
       })
     }
+
+    // 统计退订订单
+    if (order.status === 'cancelled' && isInMonth(order.cancelled_at, year, month)) {
+      const cancelUserId = order.cancelled_by || order.created_by || 'unknown'
+      cancelledById[cancelUserId] ||= {
+        id: cancelUserId,
+        name: names.get(cancelUserId) || '未知',
+        cancel_count: 0,
+        cancel_amount: 0,
+        orders: [],
+      }
+
+      const cancelAmount = orderAmount(order)
+      cancelledById[cancelUserId].cancel_count += 1
+      cancelledById[cancelUserId].cancel_amount += cancelAmount
+      cancelledById[cancelUserId].orders.push({
+        id: order.id,
+        order_no: order.order_no,
+        customer_name: order.customer_name || '未知',
+        cancelled_at: order.cancelled_at,
+        cancel_amount: cancelAmount,
+      })
+    }
   }
 
   const sales = Object.values(salesById)
   const designerReceived = Object.values(designerReceivedById)
   const designers = Object.values(designerById)
+  const cancelled = Object.values(cancelledById)
 
   return {
     year,
@@ -194,6 +221,7 @@ export function buildMonthlyStatistics({ year, month, orders, users }: MonthlySt
     sales,
     designerReceived,
     designers,
+    cancelled,
     summary: {
       sales_order_count: sales.reduce((sum, item: any) => sum + item.signed_count, 0),
       sales_signed_amount: sales.reduce((sum, item: any) => sum + item.signed_amount, 0),
@@ -202,6 +230,8 @@ export function buildMonthlyStatistics({ year, month, orders, users }: MonthlySt
       designer_received_amount: designerReceived.reduce((sum, item: any) => sum + item.received_amount, 0),
       designer_order_count: designers.reduce((sum, item: any) => sum + item.order_count, 0),
       designer_order_amount: designers.reduce((sum, item: any) => sum + item.total_amount, 0),
+      cancel_count: cancelled.reduce((sum, item: any) => sum + item.cancel_count, 0),
+      cancel_amount: cancelled.reduce((sum, item: any) => sum + item.cancel_amount, 0),
     },
   }
 }

@@ -29,7 +29,7 @@ async function getCompletedOrder(id: string) {
   const [{ data: design }, { data: installation }] = await Promise.all([
     adminSupabase
       .from('designs')
-      .select('id, title, room_count, total_area, final_price, price, description, cad_file_url, kujiale_link')
+      .select('id, title, room_count, total_area, final_price, price, description, cad_file, cad_file_url, kujiale_link')
       .eq('order_id', id)
       .maybeSingle(),
     adminSupabase
@@ -115,7 +115,7 @@ export default async function CompletedOrderDetailPage({ params }: { params: { i
           )}
           <div className="flex gap-4">
             {order.design?.cad_file_url && (
-              <a className="text-sm text-blue-600 hover:underline" href={order.design.cad_file_url} target="_blank" rel="noopener noreferrer">
+              <a className="text-sm text-blue-600 hover:underline" href={`/api/files/download?path=${encodeURIComponent(order.design.cad_file!)}`} target="_blank" rel="noopener noreferrer">
                 下载 CAD 图纸
               </a>
             )}

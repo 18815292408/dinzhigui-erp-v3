@@ -144,7 +144,7 @@ export default async function InstallationDetailPage({ params }: { params: { id:
             <div className="flex gap-4 mt-3">
               {installation.designs.cad_file_url && (
                 <a
-                  href={installation.designs.cad_file_url}
+                  href={`/api/files/download?path=${encodeURIComponent(installation.designs.cad_file!)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-600 hover:underline"

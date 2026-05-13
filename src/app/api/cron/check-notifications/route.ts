@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { sendWechatNotification, buildUrgentNotificationContent } from '@/lib/serverchan'
 
 // Cron security: verify the request has valid cron header or secret
 function verifyCronRequest(request: Request): boolean {
@@ -18,6 +19,33 @@ function verifyCronRequest(request: Request): boolean {
 
   // If no security configured, allow for development
   return process.env.NODE_ENV === 'development'
+}
+
+async function pushWechatIfConfigured(
+  adminClient: Awaited<ReturnType<typeof createAdminClient>>,
+  userId: string,
+  notification: {
+    type: string
+    title: string
+    summary: string
+    orderNo?: string
+    customerName?: string
+  }
+) {
+  try {
+    const { data: user } = await adminClient
+      .from('users')
+      .select('serverchan_sendkey')
+      .eq('id', userId)
+      .single()
+
+    if (user?.serverchan_sendkey) {
+      const { title, desp } = buildUrgentNotificationContent(notification)
+      await sendWechatNotification(user.serverchan_sendkey, title, desp)
+    }
+  } catch (err) {
+    console.error(`[WechatPush] Failed for user ${userId}:`, err)
+  }
 }
 
 export async function GET(request: Request) {
@@ -88,6 +116,13 @@ export async function GET(request: Request) {
                 summary: `订单 ${order.order_no} (客户: ${order.customer_name}) 出图已超时，请尽快完成设计`,
                 related_order_id: order.id
               })
+              await pushWechatIfConfigured(adminClient, order.assigned_designer, {
+                type: 'drawing_timeout',
+                title: '出图超时提醒',
+                summary: `订单 ${order.order_no} (客户: ${order.customer_name}) 出图已超时，请尽快完成设计`,
+                orderNo: order.order_no,
+                customerName: order.customer_name,
+              })
               results.drawing_timeout.created++
             }
           }
@@ -141,6 +176,13 @@ export async function GET(request: Request) {
                   title: '待打款超期',
                   summary: `订单 ${order.order_no} (客户: ${order.customer_name}) 已超过3天未打款，请跟进`,
                   related_order_id: order.id
+                })
+                await pushWechatIfConfigured(adminClient, owner.id, {
+                  type: 'payment_overdue',
+                  title: '待打款超期',
+                  summary: `订单 ${order.order_no} (客户: ${order.customer_name}) 已超过3天未打款，请跟进`,
+                  orderNo: order.order_no,
+                  customerName: order.customer_name,
                 })
                 results.payment_overdue.created++
               }
@@ -199,6 +241,13 @@ export async function GET(request: Request) {
                     title: '安装延误提醒',
                     summary: `订单 ${order.order_no} (客户: ${order.customer_name}) 预计出货日期已过3天仍未出货`,
                     related_order_id: order.id
+                  })
+                  await pushWechatIfConfigured(adminClient, owner.id, {
+                    type: 'shipment_delay',
+                    title: '安装延误提醒',
+                    summary: `订单 ${order.order_no} (客户: ${order.customer_name}) 预计出货日期已过3天仍未出货`,
+                    orderNo: order.order_no,
+                    customerName: order.customer_name,
                   })
                   results.shipment_delay.created++
                 }

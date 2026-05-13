@@ -42,6 +42,7 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
 
   const hasSignedAmount = signedAmount != null
   const [uploading, setUploading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -53,9 +54,9 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
     if (!file) return
 
     // 前端校验文件大小
-    const maxSize = 150 * 1024 * 1024
+    const maxSize = 500 * 1024 * 1024
     if (file.size > maxSize) {
-      setError('文件过大，最大支持 150MB')
+      setError('文件过大，最大支持 500MB')
       return
     }
 
@@ -63,7 +64,7 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
     setError('')
 
     try {
-      // Step 1: 获取 Supabase 签名上传 URL（绕过 Vercel 4.5MB 限制）
+      // Step 1: 获取 R2 预签名上传 URL（绕过 Vercel 4.5MB 限制）
       const signRes = await fetch('/api/upload/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,9 +77,9 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
         throw new Error(errData.error || '获取上传链接失败')
       }
 
-      const { signedUrl, publicUrl, filename: storedFilename } = await signRes.json()
+      const { signedUrl, publicUrl, path: storedPath } = await signRes.json()
 
-      // Step 2: 直接上传到 Supabase Storage（不经过 Vercel 服务器）
+      // Step 2: 直接上传到 R2 Storage（不经过 Vercel 服务器）
       // 不设置 Content-Type，避免触发额外的 CORS 预检限制
       const uploadRes = await fetch(signedUrl, {
         method: 'PUT',
@@ -87,19 +88,46 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
 
       if (!uploadRes.ok) {
         const errText = await uploadRes.text().catch(() => '')
-        console.error('Upload to Supabase failed:', uploadRes.status, errText)
+        console.error('Upload to R2 failed:', uploadRes.status, errText)
         throw new Error('文件上传失败，请重试')
       }
 
       setForm(prev => ({
         ...prev,
-        cad_file: storedFilename,
+        cad_file: storedPath,
         cad_file_url: publicUrl,
       }))
     } catch (err: any) {
       setError(err.message || '上传失败')
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleDeleteFile = async () => {
+    if (!form.cad_file) return
+
+    setDeleting(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/files/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ path: form.cad_file }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: '删除失败' }))
+        throw new Error(errData.error || '删除失败')
+      }
+
+      setForm(prev => ({ ...prev, cad_file: '', cad_file_url: '' }))
+    } catch (err: any) {
+      setError(err.message || '删除失败')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -255,7 +283,7 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
             <FileText className="w-5 h-5 text-gray-400" />
             <span className="flex-1 text-sm">{form.cad_file}</span>
             <a
-              href={form.cad_file_url}
+              href={`/api/files/download?path=${encodeURIComponent(form.cad_file)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-blue-600 hover:underline"
@@ -264,10 +292,15 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
             </a>
             <button
               type="button"
-              onClick={() => setForm(prev => ({ ...prev, cad_file: '', cad_file_url: '' }))}
-              className="p-1 hover:bg-gray-200 rounded"
+              onClick={handleDeleteFile}
+              disabled={deleting}
+              className="p-1 hover:bg-gray-200 rounded disabled:opacity-50"
             >
-              <X className="w-4 h-4" />
+              {deleting ? (
+                <span className="text-xs text-gray-400">删除中...</span>
+              ) : (
+                <X className="w-4 h-4" />
+              )}
             </button>
           </div>
         ) : (
@@ -285,7 +318,7 @@ export function DesignEditForm({ design, signedAmount, onSaved, submitSuccessHre
             />
           </label>
         )}
-        <p className="text-xs text-gray-400">支持 .dwg, .dxf, .pdf, .jpg, .png 格式，最大 150MB</p>
+        <p className="text-xs text-gray-400">支持 .dwg, .dxf, .pdf, .jpg, .png 格式，最大 500MB</p>
       </div>
 
       <div className="flex gap-4">

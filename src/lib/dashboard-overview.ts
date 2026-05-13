@@ -6,6 +6,7 @@ type DashboardOrder = {
   created_at?: string | null
   updated_at?: string | null
   completed_at?: string | null
+  cancelled_at?: string | null
   signed_amount?: number | string | null
   final_order_amount?: number | string | null
   created_by?: string | null
@@ -136,6 +137,12 @@ function orderAmount(order: DashboardOrder) {
   return toAmount(order.final_order_amount) || toAmount(order.signed_amount)
 }
 
+function isTerminalOrderStatus(status: string | null | undefined) {
+  return status === 'completed' || status === 'cancelled'
+}
+
+
+
 type CreationCustomer = { id: string; name: string; phone: string; created_at: string }
 
 export function buildDashboardOverview({
@@ -167,7 +174,7 @@ export function buildDashboardOverview({
       label: card.label,
       description: card.description,
       href: card.href,
-      count: orders.filter((order) => card.statuses.includes(order.status as any)).length,
+      count: orders.filter((order) => card.statuses.includes(order.status as any) && !isTerminalOrderStatus(order.status)).length,
     }
   })
 
@@ -177,6 +184,14 @@ export function buildDashboardOverview({
     description: '本月已归档订单',
     href: '/completed-orders',
     count: orders.filter((order) => order.status === 'completed' && isSameMonth(order.completed_at, now)).length,
+  })
+
+  cards.push({
+    key: 'cancelled_this_month',
+    label: '本月退订',
+    description: '本月已退订订单',
+    href: '/completed-orders?tab=cancelled',
+    count: orders.filter((order) => order.status === 'cancelled' && isSameMonth(order.cancelled_at, now)).length,
   })
 
   // 待跟进客户条目（插入推进中表格最前面，最多 5 个）
@@ -200,7 +215,7 @@ export function buildDashboardOverview({
     }))
 
   const orderEntries = orders
-    .filter((order) => Boolean(order.status && STAGE_META[order.status]))
+    .filter((order) => Boolean(order.status && STAGE_META[order.status] && !isTerminalOrderStatus(order.status)))
     .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
     .slice(0, 12)
     .map((order) => {

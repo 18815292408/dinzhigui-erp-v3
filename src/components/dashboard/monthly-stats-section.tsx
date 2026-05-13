@@ -73,12 +73,29 @@ interface DesignerStat {
   orders: DesignerOrderDetail[]
 }
 
+interface CancelledDetail {
+  id: string
+  order_no: string
+  customer_name: string
+  cancelled_at: string | null
+  cancel_amount: number
+}
+
+interface CancelledStat {
+  id: string
+  name: string
+  cancel_count: number
+  cancel_amount: number
+  orders: CancelledDetail[]
+}
+
 interface MonthlyStats {
   year: number
   month: number
   sales: SalesPerson[]
   designerReceived: DesignerReceivedStat[]
   designers: DesignerStat[]
+  cancelled: CancelledStat[]
   summary: {
     sales_order_count: number
     sales_signed_amount: number
@@ -87,6 +104,8 @@ interface MonthlyStats {
     designer_received_amount: number
     designer_order_count: number
     designer_order_amount: number
+    cancel_count: number
+    cancel_amount: number
   }
 }
 
@@ -121,6 +140,7 @@ export function MonthlyStatsSection() {
   const [expandedSales, setExpandedSales] = useState<string | null>(null)
   const [expandedDesignerReceived, setExpandedDesignerReceived] = useState<string | null>(null)
   const [expandedDesigner, setExpandedDesigner] = useState<string | null>(null)
+  const [expandedCancelled, setExpandedCancelled] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isCollapsed) {
@@ -143,6 +163,7 @@ export function MonthlyStatsSection() {
       setExpandedSales(null)
       setExpandedDesignerReceived(null)
       setExpandedDesigner(null)
+      setExpandedCancelled(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : '获取统计数据失败')
     } finally {
@@ -220,14 +241,15 @@ export function MonthlyStatsSection() {
             </div>
           ) : stats ? (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <SummaryCard label="签单数" value={stats.summary.sales_order_count} />
                 <SummaryCard label="签单金额" value={formatCurrency(stats.summary.sales_signed_amount)} tone="text-blue-700" />
                 <SummaryCard label="收款金额" value={formatCurrency(stats.summary.sales_paid_amount)} tone="text-green-700" />
+                <SummaryCard label="退订数" value={stats.summary.cancel_count} tone="text-red-600" />
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <SummaryCard label="设计师接单数" value={stats.summary.designer_received_count} />
                 <SummaryCard label="设计师接单金额" value={formatCurrency(stats.summary.designer_received_amount)} tone="text-purple-700" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <SummaryCard label="设计师下单数" value={stats.summary.designer_order_count} />
                 <SummaryCard label="设计师下单总金额" value={formatCurrency(stats.summary.designer_order_amount)} tone="text-orange-700" />
               </div>
@@ -432,6 +454,60 @@ export function MonthlyStatsSection() {
                   </Table>
                 ) : (
                   <p className="text-sm text-muted-foreground py-2 text-center">暂无设计师下单数据</p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground">退订订单统计</h4>
+                {stats.cancelled.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>操作人员</TableHead>
+                        <TableHead className="text-right">退订数</TableHead>
+                        <TableHead className="text-right">退订金额</TableHead>
+                        <TableHead className="w-20 text-right">明细</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stats.cancelled.map((person) => (
+                        <Fragment key={person.id}>
+                          <TableRow>
+                            <TableCell className="font-medium">{person.name}</TableCell>
+                            <TableCell className="text-right">{person.cancel_count}</TableCell>
+                            <TableCell className="text-right text-red-600">{formatCurrency(person.cancel_amount)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setExpandedCancelled(expandedCancelled === person.id ? null : person.id)}
+                              >
+                                {expandedCancelled === person.id ? '收起' : '展开'}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {expandedCancelled === person.id && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="bg-muted/30">
+                                <div className="space-y-2 p-2">
+                                  {person.orders.map((order) => (
+                                    <div key={order.id} className="grid grid-cols-4 gap-2 text-sm">
+                                      <span>{order.order_no}</span>
+                                      <span>{order.customer_name}</span>
+                                      <span>{formatDate(order.cancelled_at)}</span>
+                                      <span className="text-right text-red-600">{formatCurrency(order.cancel_amount)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-2 text-center">暂无退订数据</p>
                 )}
               </div>
             </>

@@ -1,6 +1,7 @@
-// Upload API - Any files to Supabase Storage
+// Upload API - Any files to R2 Storage
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { parseSessionUser } from '@/lib/types'
+import { uploadFile } from '@/lib/r2/upload'
 
 export async function POST(request: NextRequest) {
   const sessionCookie = request.cookies.get('session')
@@ -9,11 +10,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '请先登录' }, { status: 401 })
   }
 
-  const { data: userData } = await import('@/lib/types').then(m =>
-    Promise.resolve({ data: m.parseSessionUser(sessionCookie.value) })
-  )
-
-  if (!userData) {
+  const user = parseSessionUser(sessionCookie.value)
+  if (!user) {
     return NextResponse.json({ error: '登录已过期，请重新登录' }, { status: 401 })
   }
 
@@ -25,7 +23,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请选择要上传的文件' }, { status: 400 })
     }
 
-    // 支持任意文件类型
     const allowedTypes = [
       '.dwg', '.dxf', '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp',
       '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf',
@@ -38,44 +35,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '不支持的文件类型' }, { status: 400 })
     }
 
-    // Max 150MB
-    if (file.size > 150 * 1024 * 1024) {
-      return NextResponse.json({ error: '文件过大，最大支持 150MB' }, { status: 400 })
+    // Max 500MB
+    if (file.size > 500 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件过大，最大支持 500MB' }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    // Generate unique filename
     const timestamp = Date.now()
-    const filename = `${userData.organization_id}/${timestamp}-${file.name}`
+    const filename = `${user.organization_id}/${timestamp}-${file.name}`
 
-    // Upload to Supabase Storage
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('cad-files')
-      .upload(filename, buffer, {
-        contentType: file.type || 'application/octet-stream',
-        upsert: true,
-      })
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      return NextResponse.json({ error: '文件上传失败，请重试' }, { status: 500 })
-    }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('cad-files')
-      .getPublicUrl(filename)
+    const result = await uploadFile(buffer, filename, file.type || 'application/octet-stream')
 
     return NextResponse.json({
-      url: urlData.publicUrl,
+      url: result.publicUrl,
       filename: file.name,
+      path: result.path,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Upload error:', error)
-    return NextResponse.json({ error: '文件上传失败，请重试' }, { status: 500 })
+    return NextResponse.json(
+      { error: '文件上传失败: ' + (error.message || '请重试') },
+      { status: 500 }
+    )
   }
 }

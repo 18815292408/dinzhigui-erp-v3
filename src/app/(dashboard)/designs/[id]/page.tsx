@@ -164,17 +164,8 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
         </Card>
       )}
 
-      {/* 待接单：设计师需重新接单（通过通知接单） */}
-      {order?.status === 'pending_design' && isAssignedDesigner && (
-        <Card>
-          <CardContent className="py-6 text-center text-gray-500">
-            <p>订单已回退至待接单状态，请通过消息中心的通知重新接单</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 设计方案编辑区（仅 designing/in_design 且分配给当前设计师时显示） */}
-      {['designing', 'in_design'].includes(order?.status) && isAssignedDesigner && (
+      {/* 设计阶段编辑区（pending_design ~ pending_order + 分配给当前设计师时显示） */}
+      {['pending_design', 'designing', 'in_design', 'pending_order'].includes(order?.status) && isAssignedDesigner && (
         <Card>
           <CardHeader>
             <CardTitle>编辑设计方案</CardTitle>
@@ -189,21 +180,18 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
         </Card>
       )}
 
-      {/* 设计方案只读区（其他人查看 designing/in_design 状态） */}
-      {['designing', 'in_design'].includes(order?.status) && !isAssignedDesigner && (
+      {/* 设计方案只读区（非当前设计师，处于设计阶段时显示） */}
+      {['pending_design', 'designing', 'in_design', 'pending_order'].includes(order?.status) && !isAssignedDesigner && (
         <DesignReadOnly design={design} signedAmount={order.signed_amount} />
       )}
 
-      {/* pending_order：下单到工厂 */}
+      {/* pending_order：下单到工厂（始终显示 PlaceOrderCard） */}
       {order?.status === 'pending_order' && (
-        <>
-          <DesignReadOnly design={design} signedAmount={order.signed_amount} />
-          <PlaceOrderCard
-            orderId={order.id}
-            customerId={design.customers?.id || ''}
-            initialValue={order.factory_records || []}
-          />
-        </>
+        <PlaceOrderCard
+          orderId={order.id}
+          customerId={design.customers?.id || ''}
+          initialValue={order.factory_records || []}
+        />
       )}
 
       {/* pending_payment 及之后：只读展示 */}
@@ -211,8 +199,8 @@ export default async function DesignDetailPage({ params }: { params: { id: strin
         <DesignReadOnly design={design} signedAmount={order.signed_amount} />
       )}
 
-      {/* 删除按钮（仅草稿状态且有权限时） */}
-      {canEdit && order?.status === 'designing' && (
+      {/* 删除按钮（设计阶段且有编辑权限时） */}
+      {canEdit && ['pending_design', 'designing', 'in_design', 'pending_order'].includes(order?.status) && (
         <div className="flex gap-4">
           <DesignDeleteButton designId={design.id} />
         </div>
@@ -271,7 +259,7 @@ function DesignReadOnly({ design, signedAmount }: { design: any; signedAmount?: 
               <div className="p-4 border rounded-lg">
                 <p className="text-sm text-muted-foreground">CAD文件</p>
                 <a
-                  href={design.cad_file_url}
+                  href={`/api/files/download?path=${encodeURIComponent(design.cad_file!)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-600 hover:underline"

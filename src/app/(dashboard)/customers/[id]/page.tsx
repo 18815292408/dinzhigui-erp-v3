@@ -73,8 +73,6 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
   const { parseSessionUser } = await import('@/lib/types')
   const user = sessionCookie ? parseSessionUser(sessionCookie.value) : null
 
-  const canEdit = Boolean(user && ['owner', 'manager', 'sales'].includes(user.role))
-
   // 获取安装师傅列表（用于派单和指派安装）
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminSupabase = await createAdminClient()
@@ -96,6 +94,15 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
   if (!customer) {
     return <div className="p-6">客户不存在</div>
   }
+
+  // 权限控制：owner/manager 可以编辑所有客户，sales 只能编辑自己创建的客户
+  const canEdit = Boolean(
+    user && (
+      user.role === 'owner' ||
+      user.role === 'manager' ||
+      (user.role === 'sales' && customer.created_by === user.id)
+    )
+  )
 
   return (
     <CustomerDetailClient

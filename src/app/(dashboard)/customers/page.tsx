@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isActiveOrderStatus, orderBelongsToCustomer, shouldShowCustomerInCreateList, shouldShowCustomerInFollowup } from '@/lib/order-workflow'
+import { isActiveOrderStatus, isTerminalOrderStatus, orderBelongsToCustomer, shouldShowCustomerInCreateList, shouldShowCustomerInFollowup } from '@/lib/order-workflow'
 import { parseSessionUser } from '@/lib/types'
 import { CustomersPageClient } from './customers-page-client'
 
@@ -86,9 +86,11 @@ async function getCustomers(personalMode: boolean) {
         orderStatus: d.order_id ? orderStatusById.get(d.order_id) : null,
       }))
 
+    const hasOnlyTerminalOrders = allCustomerOrders.length > 0 && allCustomerOrders.every((o: any) => isTerminalOrderStatus(o.status))
+
     if (shouldShowCustomerInFollowup({ orders: activeOrders, designs })) {
       customersWithOrders.push({ ...c, orders: activeOrders, designs })
-    } else if (shouldShowCustomerInCreateList({ orders: allCustomerOrders, designs })) {
+    } else if (shouldShowCustomerInCreateList({ orders: allCustomerOrders, designs }) || hasOnlyTerminalOrders) {
       customersWithoutOrders.push({ ...c, orders: allCustomerOrders })
     }
   }

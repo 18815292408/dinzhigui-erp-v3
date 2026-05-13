@@ -166,6 +166,52 @@ export function canDeleteOrder(order: {
 }
 
 /**
+ * 检查用户是否有权限退订指定订单
+ * 规则：老板、店长、关联设计师、关联导购可以退订
+ * 条件：订单未安装完成（installation_status !== 'installed'）且订单状态不是已完成或已退订
+ */
+export function canCancelOrder(order: {
+  created_by?: string | null
+  assigned_designer?: string | null
+  assigned_installer?: string | null
+  organization_id: string
+  status?: string | null
+  installation_status?: string | null
+}, user: SessionUser): boolean {
+  // 组织隔离
+  if (order.organization_id !== user.organization_id) {
+    return false
+  }
+
+  // 已完成或已退订的订单不能退订
+  if (order.status === 'completed' || order.status === 'cancelled') {
+    return false
+  }
+
+  // 已安装的订单不能退订
+  if (order.installation_status === 'installed') {
+    return false
+  }
+
+  // owner/manager 可以退订
+  if (user.role === 'owner' || user.role === 'manager') {
+    return true
+  }
+
+  // 销售（导购）可以退订自己创建的订单
+  if (user.role === 'sales') {
+    return order.created_by === user.id
+  }
+
+  // 设计师可以退订分配给自己的订单
+  if (user.role === 'designer') {
+    return order.assigned_designer === user.id
+  }
+
+  return false
+}
+
+/**
  * 检查用户是否有权限查看指定客户
  */
 export function canViewCustomer(customer: {
@@ -330,6 +376,41 @@ export function filterDesignsByRole<T extends {
     }
     return false
   })
+}
+
+/**
+ * 检查用户是否有权限修改客户基本信息
+ * 规则：仅销售、店长和老板可以修改客户基本信息
+ */
+export function canEditCustomerBasicInfo(customer: {
+  created_by?: string | null
+  organization_id: string
+}, user: SessionUser): boolean {
+  // 组织隔离
+  if (customer.organization_id !== user.organization_id) {
+    return false
+  }
+
+  // owner/manager 可以修改全部客户信息
+  if (user.role === 'owner' || user.role === 'manager') {
+    return true
+  }
+
+  // 销售可以修改自己创建的客户信息
+  if (user.role === 'sales') {
+    return customer.created_by === user.id
+  }
+
+  // 设计师和安装人员无权修改客户基本信息
+  return false
+}
+
+/**
+ * 检查用户角色是否有权限查看客户基本信息（所有组织内成员都可以查看）
+ */
+export function canViewCustomerBasicInfo(user: SessionUser): boolean {
+  // 所有已认证用户都可以查看客户基本信息
+  return ['owner', 'manager', 'sales', 'designer', 'installer'].includes(user.role)
 }
 
 /**

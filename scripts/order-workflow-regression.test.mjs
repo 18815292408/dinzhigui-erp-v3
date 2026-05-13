@@ -163,6 +163,9 @@ assert.equal(
     roomCount: 3,
     amount: 15000,
     completedAt: '2026-04-28T08:00:00.000Z',
+    cancelledAt: null,
+    cancelledBy: null,
+    status: null,
     installationFeedback: '安装完成',
   }),
   'completed order cards should be based on order archive data, not installation route data'

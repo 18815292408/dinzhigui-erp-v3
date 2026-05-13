@@ -19,7 +19,7 @@ async function getInstallations() {
   // 先查询当前用户有权限的订单ID列表
   let orderQuery = adminSupabase
     .from('orders')
-    .select('id, customer_name, customer_phone, status')
+    .select('id, customer_name, customer_phone, customer_address, status')
     .eq('organization_id', orgId)
 
   if (user.role === 'sales') {
@@ -38,9 +38,9 @@ async function getInstallations() {
     .from('installations')
     .select(`
       *,
-      customers(id, name, phone, house_type),
+      customers(id, name, phone, address, house_type),
       designs(id, title, room_count, final_price, price),
-      orders(id, order_no, status, customer_name, customer_phone, house_type)
+      orders(id, order_no, status, customer_name, customer_phone, customer_address, house_type)
     `)
     .eq('organization_id', orgId)
     .in('status', [...ACTIVE_INSTALLATION_STATUSES, 'completed'])
@@ -56,7 +56,7 @@ async function getInstallations() {
   const existingOrderIds = new Set((data || []).map((i: any) => i.order_id).filter(Boolean))
   let orphanQuery = adminSupabase
     .from('orders')
-    .select('id, status, order_no, customer_name, customer_phone, house_type, assigned_installer, organization_id')
+    .select('id, status, order_no, customer_name, customer_phone, customer_address, house_type, assigned_installer, organization_id')
     .eq('organization_id', orgId)
     .in('status', ['pending_shipment', 'in_install', 'in_after_sales'])
 
@@ -120,9 +120,9 @@ async function getInstallations() {
       .from('installations')
       .select(`
         *,
-        customers(id, name, phone, house_type),
+        customers(id, name, phone, address, house_type),
         designs(id, title, room_count, final_price, price),
-        orders(id, order_no, status, customer_name, customer_phone, house_type)
+        orders(id, order_no, status, customer_name, customer_phone, customer_address, house_type)
       `)
       .eq('organization_id', orgId)
       .in('status', [...ACTIVE_INSTALLATION_STATUSES, 'completed'])
