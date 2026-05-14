@@ -8,6 +8,13 @@ import { CustomerBasicInfoEditor } from '@/components/customers/customer-basic-i
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TransferDesignButton } from '@/components/customers/transfer-design-button'
 import { BackButton } from '@/components/ui/back-button'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { OrderStatusFlow } from '@/components/orders/order-status-flow'
 import { FactorySelector } from '@/components/orders/factory-selector'
 import { PerFactoryShipmentCard } from '@/components/installations/per-factory-shipment-card'
@@ -81,6 +88,11 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
   const [isEditingBasicInfo, setIsEditingBasicInfo] = useState(false)
   const [basicInfoUpdateError, setBasicInfoUpdateError] = useState<string | null>(null)
   const [currentCustomer, setCurrentCustomer] = useState(customer)
+  const [showReDispatchDialog, setShowReDispatchDialog] = useState(false)
+  const [reDispatchDesigners, setReDispatchDesigners] = useState<{ id: string; name: string }[]>([])
+  const [reDispatchSelectedDesigner, setReDispatchSelectedDesigner] = useState<string | null>(null)
+  const [reDispatchDesignerError, setReDispatchDesignerError] = useState('')
+  const [reDispatchLoading, setReDispatchLoading] = useState(false)
 
   const followUps = (typeof currentCustomer.follow_ups === 'string'
     ? JSON.parse(currentCustomer.follow_ups || '[]')
@@ -335,6 +347,46 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
     }
   }
 
+  const handleOpenReDispatchDialog = async () => {
+    setReDispatchDesigners([])
+    setReDispatchSelectedDesigner(null)
+    setReDispatchDesignerError('')
+    const res = await fetch(`/api/designers?organization_id=${encodeURIComponent(user?.organization_id || '')}`)
+    if (res.ok) {
+      const data = await res.json()
+      setReDispatchDesigners(data)
+    }
+    setShowReDispatchDialog(true)
+  }
+
+  const handleReDispatchConfirm = async () => {
+    if (!reDispatchSelectedDesigner) {
+      setReDispatchDesignerError('请选择设计师')
+      return
+    }
+    setReDispatchDesignerError('')
+    setReDispatchLoading(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ designer_id: reDispatchSelectedDesigner }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || '派单失败')
+      }
+      setShowReDispatchDialog(false)
+      router.push(`/customers/${currentCustomer.id}`)
+      router.refresh()
+    } catch (err: any) {
+      setActionError(err.message)
+    } finally {
+      setReDispatchLoading(false)
+    }
+  }
+
   const handleCancelOrder = async () => {
     if (!order?.id) return
     setCancelling(true)
@@ -478,6 +530,18 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
             )}
 
             {/* ====== 各状态操作区 ====== */}
+
+            {/* pending_dispatch：待派单，可重新派单 */}
+            {order.status === 'pending_dispatch' && (
+              <div className="p-4 bg-gray-50 rounded-lg space-y-3">
+                <p className="text-sm text-gray-700">
+                  订单处于<strong>待派单</strong>阶段，可以重新选择设计师进行派单。
+                </p>
+                <Button onClick={handleOpenReDispatchDialog}>
+                  重新派单
+                </Button>
+              </div>
+            )}
 
             {/* pending_design：等待设计师接单 */}
             {order.status === 'pending_design' && (
@@ -967,6 +1031,61 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
           </div>
         </div>
       )}
+
+      {/* 重新派单对话框 */}
+      <Dialog open={showReDispatchDialog} onOpenChange={(open) => {
+        setShowReDispatchDialog(open)
+        if (!open) {
+          setReDispatchDesigners([])
+          setReDispatchSelectedDesigner(null)
+          setReDispatchDesignerError('')
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>选择设计师</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              为客户 "{currentCustomer.name}" 重新选择设计师
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {reDispatchDesigners.map(d => (
+                <button
+                  key={d.id}
+                  onClick={() => {
+                    setReDispatchSelectedDesigner(d.id)
+                    setReDispatchDesignerError('')
+                  }}
+                  className={`p-3 rounded-lg border text-left transition-colors ${
+                    reDispatchSelectedDesigner === d.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+            {reDispatchDesigners.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                暂无可用设计师
+              </p>
+            )}
+            {reDispatchDesignerError && (
+              <p className="text-sm text-red-500">{reDispatchDesignerError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowReDispatchDialog(false)}>
+                取消
+              </Button>
+              <Button onClick={handleReDispatchConfirm} disabled={!reDispatchSelectedDesigner || reDispatchLoading}>
+                {reDispatchLoading ? '派单中...' : '确认派单'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

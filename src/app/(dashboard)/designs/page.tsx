@@ -73,6 +73,23 @@ async function getDesignTasks() {
           }
         }
       }
+
+      // 如果订单缺少客户地址，从客户表补全
+      const missingAddressDesigns = data.filter((d: any) => d.customer_id && d.orders && !d.orders.customer_address)
+      if (missingAddressDesigns.length > 0) {
+        const customerIds = Array.from(new Set(missingAddressDesigns.map((d: any) => d.customer_id)))
+        const { data: customers } = await adminSupabase
+          .from('customers')
+          .select('id, address')
+          .in('id', customerIds)
+        const addressMap: any = {}
+        customers?.forEach((c: any) => { addressMap[c.id] = c.address })
+        for (const d of missingAddressDesigns) {
+          if (d.orders && addressMap[d.customer_id]) {
+            d.orders.customer_address = addressMap[d.customer_id]
+          }
+        }
+      }
     }
   }
 

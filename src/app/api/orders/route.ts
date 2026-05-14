@@ -62,13 +62,29 @@ export async function POST(request: Request) {
   const adminSupabase = await createAdminClient()
 
   const body = await request.json()
-  const {
+  let {
     customer_name, customer_phone, customer_address,
-    house_type, house_area, signed_amount
+    house_type, house_area, signed_amount, customer_id
   } = body
 
   if (!customer_name || !customer_name.trim()) {
     return NextResponse.json({ error: '客户姓名不能为空' }, { status: 400 })
+  }
+
+  // 如果传了 customer_id，从客户记录补全缺失的地址/电话/房型字段
+  if (customer_id) {
+    const { data: customer } = await adminSupabase
+      .from('customers')
+      .select('address, phone, house_type')
+      .eq('id', customer_id)
+      .eq('organization_id', user.organization_id)
+      .single()
+
+    if (customer) {
+      customer_address = customer_address || customer.address
+      customer_phone = customer_phone || customer.phone
+      house_type = house_type || customer.house_type
+    }
   }
 
   // 生成订单号: DD-YYYYMMDD-NNN，带竞态条件重试
