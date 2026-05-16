@@ -22,9 +22,9 @@ export async function GET(request: Request) {
     .from('orders')
     .select(`
       *,
-      created_by_user:users!created_by(name),
-      assigned_designer_user:users!assigned_designer(name),
-      assigned_installer_user:users!assigned_installer(name)
+      created_by_user:users!created_by(display_name),
+      assigned_designer_user:users!assigned_designer(display_name),
+      assigned_installer_user:users!assigned_installer(display_name)
     `)
     .eq('organization_id', user.organization_id)
 
