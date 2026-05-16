@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FollowUpForm } from '@/components/customers/follow-up-form'
 import { OrderAmountEditor } from '@/components/customers/order-amount-editor'
 import { CustomerBasicInfoEditor } from '@/components/customers/customer-basic-info-editor'
@@ -88,6 +88,13 @@ export function CustomerDetailClient({ customer, canEdit, user, designers, insta
   const [isEditingBasicInfo, setIsEditingBasicInfo] = useState(false)
   const [basicInfoUpdateError, setBasicInfoUpdateError] = useState<string | null>(null)
   const [currentCustomer, setCurrentCustomer] = useState(customer)
+
+  // 当 customer prop 变化时同步到 currentCustomer 状态
+  // 解决 router.refresh() 后 server component 重新渲染但 client state 未更新的问题
+  useEffect(() => {
+    setCurrentCustomer(customer)
+  }, [customer])
+
   const [showReDispatchDialog, setShowReDispatchDialog] = useState(false)
   const [reDispatchDesigners, setReDispatchDesigners] = useState<{ id: string; name: string }[]>([])
   const [reDispatchSelectedDesigner, setReDispatchSelectedDesigner] = useState<string | null>(null)
